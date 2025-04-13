@@ -1,0 +1,27 @@
+Helper File
+
+Starting command:
+
+cc main.c -o main \
+  -I/opt/homebrew/include/SDL2 \
+  -L/opt/homebrew/lib \
+  -lSDL2
+
+Colors:
+
+0xFFFF0000	    Full red
+0xFF00FF00	    Full green
+0xFF0000FF	    Full blue
+0xFFFFFFFF	    Full white
+0xFF000000	    Full black
+0xFFFFFF00	    Red + Green
+0xFF00FFFF	    Green + Blue
+0xFFFF00FF	    Red + Blue
+0xFF808080	    Equal RGB values
+0xFFD3D3D3	    Softer gray
+0xFF404040	    Dark tone
+0xFFFFA500	    Red + some green
+0xFFFFC0CB	    Light red-ish
+0xFFA52A2A	    Red-dominant brown
+0xFF800080	    Red + Blue, low values
+0x00000000	    Fully transparent black
