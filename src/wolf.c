@@ -188,8 +188,8 @@ int main(void) {
         1280, 720,
         SDL_WINDOW_ALLOW_HIGHDPI);
     // ASSERT(state.window, "SDL_CreateWindow failed");
-    
-    state.renderer = SDL_CreateRenderer(state.window, 
+
+    state.renderer = SDL_CreateRenderer(state.window,
         -1, SDL_RENDERER_PRESENTVSYNC);
     // ASSERT(state.renderer, "SDL_CreateRenderer failed");
 
