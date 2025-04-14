@@ -3,7 +3,7 @@ Helper File
 
 Starting command:
 
-cc (wolf or doom).c -o main \
+cc src/(wolf or doom).c -o main \
   -I/opt/homebrew/include/SDL2 \
   -L/opt/homebrew/lib \
   -lSDL2

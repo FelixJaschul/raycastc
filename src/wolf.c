@@ -146,76 +146,59 @@ static void render() {
     }
 }
 
-static void move() {
-    const f32
-            rot = 3.0f * 0.016f,
-            mov = 3.0f * 0.016f;
-    const v2
-            d = state.dir,
-            p = state.plane;
-    const u8
-            *keystate = SDL_GetKeyboardState(NULL);
-    if (keystate[SDL_SCANCODE_LEFT]) {
-        state.dir.x = d.x * cos(rot) - d.y * sin(rot);
-        state.dir.y = d.x * sin(rot) + d.y * cos(rot);
-        state.plane.x = p.x * cos(rot) - p.y * sin(rot);
-        state.plane.y = p.x * sin(rot) + p.y * cos(rot);
-    }
-    if (keystate[SDL_SCANCODE_RIGHT]) {
-        state.dir.x = d.x * cos(-rot) - d.y * sin(-rot);
-        state.dir.y = d.x * sin(-rot) + d.y * cos(-rot);
-        state.plane.x = p.x * cos(-rot) - p.y * sin(-rot);
-        state.plane.y = p.x * sin(-rot) + p.y * cos(-rot);
-    }
-    if (keystate[SDL_SCANCODE_UP]) {
-        state.pos.x += state.dir.x * mov;
-        state.pos.y += state.dir.y * mov;
-    }
-    if (keystate[SDL_SCANCODE_DOWN]) {
-        state.pos.x -= state.dir.x * mov;
-        state.pos.y -= state.dir.y * mov;
-    }
-}
-
 int main(void) {
-    // Handle and Init. Events
-
-    // ASSERT(!SDL_Init(SDL_INIT_EVERYTHING), "SDL_Init failed");
-
-    state.window = SDL_CreateWindow("raycast",
+    state.window =
+        SDL_CreateWindow("raycast",
         SDL_WINDOWPOS_CENTERED_DISPLAY(1),
         SDL_WINDOWPOS_CENTERED_DISPLAY(1),
         1280, 720,
         SDL_WINDOW_ALLOW_HIGHDPI);
-    // ASSERT(state.window, "SDL_CreateWindow failed");
-
-    state.renderer = SDL_CreateRenderer(state.window,
+    state.renderer =
+        SDL_CreateRenderer(state.window,
         -1, SDL_RENDERER_PRESENTVSYNC);
-    // ASSERT(state.renderer, "SDL_CreateRenderer failed");
-
-    state.texture = SDL_CreateTexture(state.renderer,
+    state.texture =
+        SDL_CreateTexture(state.renderer,
         SDL_PIXELFORMAT_ARGB8888,
         SDL_TEXTUREACCESS_STREAMING,
         SCREEN_WIDTH, SCREEN_HEIGHT);
-    // ASSERT(state.texture, "SDL_CreateTexture failed");
-
-    state.pos = (v2) { 2, 2 };
-    state.dir = normalize(((v2) { -1.0f, 0.1f }));
-    state.plane = (v2) {0.0f, 0.66f };
+    state.pos =
+        (v2) { 2, 2 };
+    state.dir =
+        normalize(((v2) { -1.0f, 0.1f }));
+    state.plane =
+        (v2) { 0.0f, 0.66f };
 
     while (!state.quit) {
         SDL_Event ev;
-        while (SDL_PollEvent(&ev)) {
-            switch (ev.type) {
-                case SDL_QUIT:
-                    state.quit = true;
-                break;
-            }
+        while (SDL_PollEvent(&ev)) if (ev.type == SDL_QUIT) state.quit = true;
+        const f32
+            rot = 3.0f * 0.016f,
+            mov = 3.0f * 0.016f;
+        const v2
+                d = state.dir,
+                p = state.plane;
+        const u8
+                *keystate = SDL_GetKeyboardState(NULL);
+        if (keystate[SDL_SCANCODE_LEFT]) {
+            state.dir.x = d.x * cos(rot) - d.y * sin(rot);
+            state.dir.y = d.x * sin(rot) + d.y * cos(rot);
+            state.plane.x = p.x * cos(rot) - p.y * sin(rot);
+            state.plane.y = p.x * sin(rot) + p.y * cos(rot);
         }
-        // Movement
-        move();
-
-        // Setup
+        if (keystate[SDL_SCANCODE_RIGHT]) {
+            state.dir.x = d.x * cos(-rot) - d.y * sin(-rot);
+            state.dir.y = d.x * sin(-rot) + d.y * cos(-rot);
+            state.plane.x = p.x * cos(-rot) - p.y * sin(-rot);
+            state.plane.y = p.x * sin(-rot) + p.y * cos(-rot);
+        }
+        if (keystate[SDL_SCANCODE_UP]) {
+            state.pos.x += state.dir.x * mov;
+            state.pos.y += state.dir.y * mov;
+        }
+        if (keystate[SDL_SCANCODE_DOWN]) {
+            state.pos.x -= state.dir.x * mov;
+            state.pos.y -= state.dir.y * mov;
+        }
 
         memset(state.pixels, 0, sizeof(state.pixels));
         render();
