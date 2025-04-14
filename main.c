@@ -30,7 +30,7 @@ typedef struct v2i_s    { i32 x, y; } v2i;
 #define normalize(v)    ({ const v2 _u = (v); const f32 l = length(_u); (v2) { _u.x / l, _u.y / l }; })
 #define min(a, b)       ({ __typeof__(a) _a = (a), _b = (b); _a < _b ? _a : _b; })
 #define max(a, b)       ({ __typeof__(a) _a = (a), _b = (b); _a > _b ? _a : _b; })
-#define sign(a)         ({ __typeof__(a) _a = (a); (__typeof__(a))(_a < 0 ? -1 : (_a > 0 ? 1 : 0)); })
+#define sign(a)         ({ __typeof__(a) _a = (a); (__typeof__(a)) (_a < 0 ? -1 : (_a > 0 ? 1 : 0)); })
 
 #define MAP_SIZE        8
 static u8 MAPDATA[MAP_SIZE * MAP_SIZE] = {
@@ -129,9 +129,9 @@ static void render() {
         // 9. Walls on y-Sides are darker
         if (hit.side == 1) {
             const u32
-                r = ((color & 0xFF0000) >> 16) * 0.6,
-                g  = ((color & 0x00FF00) >> 8) * 0.6,
-                b  = (color & 0x0000FF) * 0.6;
+                r   = ((color & 0xFF0000) >> 16) * 0.6,
+                g   = ((color & 0x00FF00) >> 8) * 0.6,
+                b   = (color & 0x0000FF) * 0.6;
 
             color = (0xFF000000) | (min(r, 255) << 16) | (min(g, 255) << 8) | min(b, 255);
         } // Darkens color of ray hit wall from the y-axis side
@@ -143,9 +143,9 @@ static void render() {
         const f32 dperp = hit.side == 0 ? (sideDist.x - deltaDist.x) : (sideDist.y - deltaDist.y);
 
         const int
-            h = (int) (SCREEN_HEIGHT / dperp),
-            y0 = max((SCREEN_HEIGHT / 2) - (h / 2), 0),
-            y1 = min((SCREEN_HEIGHT / 2) + (h / 2), SCREEN_HEIGHT - 1);
+            h   = (int) (SCREEN_HEIGHT / dperp),
+            y0  = max((SCREEN_HEIGHT / 2) - (h / 2), 0),
+            y1  = min((SCREEN_HEIGHT / 2) + (h / 2), SCREEN_HEIGHT - 1);
 
         verline(x, 0, y0, 0xFF202020);
         verline(x, y0, y1, color);
