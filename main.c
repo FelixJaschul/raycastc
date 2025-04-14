@@ -18,25 +18,10 @@ typedef int32_t         i32;
 typedef int64_t         i64;
 typedef size_t          usize;
 typedef ssize_t         isize;
-/*
-#define PI              3.14159265359f
-#define TAU             (2.0f * PI)
-#define PI_2            (PI / 2.0f)
-#define PI_4            (PI / 4.0f)
 
-#define DEG2RAD(_d)     ((_d) * (PI / 180.0f))
-#define RAD2DEG(_d)     ((_d) * (180.0f / PI))
-*/
 #define SCREEN_WIDTH    384
 #define SCREEN_HEIGHT   216
-/*
-#define EYE_Z           1.65f
-#define HFOV            DEG2RAD(90.0f)
-#define VFOV            0.5f
 
-#define ZNEAR           0.0001f
-#define ZFAR            128.0f
-*/
 typedef struct v2_s     { f32 x, y; } v2;
 typedef struct v2i_s    { i32 x, y; } v2i;
 
@@ -46,15 +31,7 @@ typedef struct v2i_s    { i32 x, y; } v2i;
 #define min(a, b)       ({ __typeof__(a) _a = (a), _b = (b); _a < _b ? _a : _b; })
 #define max(a, b)       ({ __typeof__(a) _a = (a), _b = (b); _a > _b ? _a : _b; })
 #define sign(a)         ({ __typeof__(a) _a = (a); (__typeof__(a)) (_a < 0 ? -1 : (_a > 0 ? 1 : 0)); })
-/*
-#define clamp(_x, _mi, _ma) \
-                        (min(max(_x, _mi), _ma))
-#define ifnan(_x, _alt) ({ __typeof__(_x) __x = (_x); isnan(__x) ? (_alt) : __x; })
-// -1 right, 0 on, 1 left
-#define point_side(_p, _a, _b) \
-                        ({__typeof__(_p) __p = (_p), __a = (_a), __b = (_b); \
-                        -(((__p.x - __a.x) * (__b.y - __a.y)) - ((__p.y - __a.y) * (__b.x - __a.x))); })
-*/
+
 #define MAP_SIZE        8
 static u8 MAPDATA[MAP_SIZE * MAP_SIZE] = {
     1, 1, 1, 1, 1, 1, 1, 1,
@@ -66,22 +43,7 @@ static u8 MAPDATA[MAP_SIZE * MAP_SIZE] = {
     1, 0, 0, 0, 0, 0, 0, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
 };
-/*
-struct wall {
-    v2i a, b;
-    int portal;
-};
 
-// sector id for "no sector"
-#define SECTOR_NONE     0
-#define SECTOR_MAX      128
-
-struct sector {
-    int id;
-    usize firstwall, nwalls;
-    f32 zfloor, zceil;
-};
-*/
 struct {
     SDL_Window *window;
     SDL_Texture *texture;
