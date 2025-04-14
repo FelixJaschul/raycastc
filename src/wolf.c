@@ -59,31 +59,24 @@ static void verline(int x, int y0, int y1, u32 color) {
 }
 
 static void render() {
-    // 1. Iterating over Screen
     for (int x = 0; x < SCREEN_WIDTH; x++) {
-        // 2. Compute ray dir for this column
         const f32 xcam  = (2 * (x / (f32) (SCREEN_WIDTH))) -1;
         const v2  dir   = { state.dir.x + state.plane.x * xcam,
                             state.dir.y + state.plane.y * xcam };
 
-        // 3. Initial pos and integer tile pos
-        v2  pos      = state.pos; // Starting point of ray
-        v2i ipos     = { (int) pos.x, (int) pos.y }; // Storing integer map coords
+        v2  pos      = state.pos;
+        v2i ipos     = { (int) pos.x, (int) pos.y };
 
-        // 4. Pre-get dist between x / y sides (delta)
         const v2 deltaDist = {  fabsf(dir.x) < 1e-20 ? 1e30 : fabsf(1.0f / dir.x),
                                 fabsf(dir.y) < 1e-20 ? 1e30 : fabsf(1.0f / dir.y) };
 
-        // 5. Calc initial dist to dirst x / y grid lines
         v2 sideDist = { deltaDist.x * (dir.x < 0 ? (pos.x - ipos.x) : ((ipos.x + 1) - pos.x)),
                         deltaDist.y * (dir.y < 0 ? (pos.y - ipos.y) : ((ipos.y + 1) - pos.y))
-        }; // How fast ray has to go till first x / y wall boundary
+        };
 
-        // 6. Step dir on x / y axes
         const v2i step = {  (int) sign(dir.x),
                             (int) sign(dir.y) };
 
-        // 7. DDA ???
         struct {
             int val, side;
             v2  pos;
@@ -101,15 +94,9 @@ static void render() {
                 hit.side = 1;
             }
 
-            // ASSERT( ipos.x >= 0 && ipos.x < MAP_SIZE && ipos.y >= 0 && ipos.y < MAP_SIZE, "DDA out of Bounds");
-
             hit.val = MAPDATA[ipos.y * MAP_SIZE + ipos.x];
-        }   // -- March along the grid until wall is hit
-            // -- sideDist => next side boundary
-            // -- hit.side => weather x (0) or y (1) was crossed
-            // -- Loop ends when a non-zero value (wall) is found in the map
+        }
 
-        // 8. Color based on map value
         u32 color = 0;
         switch (hit.val) {
             case 1: color = 0xFF0000FF; break;
@@ -118,7 +105,6 @@ static void render() {
             case 4: color = 0xFFFF00FF; break;
         }
 
-        // 9. Walls on y-Sides are darker
         if (hit.side == 1) {
             const u32
                 r   = ((color & 0xFF0000) >> 16) * 0.6,
@@ -126,10 +112,8 @@ static void render() {
                 b   = (color & 0x0000FF) * 0.6;
 
             color = (0xFF000000) | (min(r, 255) << 16) | (min(g, 255) << 8) | min(b, 255);
-        } // Darkens color of ray hit wall from the y-axis side
+        }
 
-
-        // 10. Hit point and perpendicular dist
         hit.pos = (v2) { pos.x + sideDist.x, pos.y + sideDist.y };
 
         const f32 dperp = hit.side == 0 ? \
@@ -140,9 +124,9 @@ static void render() {
             y0  = max((SCREEN_HEIGHT / 2) - (h / 2), 0),
             y1  = min((SCREEN_HEIGHT / 2) + (h / 2), SCREEN_HEIGHT - 1);
 
-        verline(x, 0, y0, 0xFF202020); // Gray Sky
-        verline(x, y0, y1, color); // Drawing walls
-        verline(x, y1, SCREEN_HEIGHT - 1, 0xFF505050); // Dark Gray floor
+        verline(x, 0, y0, 0xFF202020);
+        verline(x, y0, y1, color);
+        verline(x, y1, SCREEN_HEIGHT - 1, 0xFF505050);
     }
 }
 
