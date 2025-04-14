@@ -153,12 +153,35 @@ static void render() {
     }
 }
 
-static void rotate(f32 rot) {
-    const v2 d = state.dir, p = state.plane;
-    state.dir.x = d.x * cos(rot) - d.y * sin(rot);
-    state.dir.y = d.x * sin(rot) + d.y * cos(rot);
-    state.plane.x = p.x * cos(rot) - p.y * sin(rot);
-    state.plane.y = p.x * sin(rot) + p.y * cos(rot);
+static void move() {
+    const f32
+            rot = 3.0f * 0.016f,
+            mov = 3.0f * 0.016f;
+    const v2
+            d = state.dir,
+            p = state.plane;
+    const u8
+            *keystate = SDL_GetKeyboardState(NULL);
+    if (keystate[SDL_SCANCODE_LEFT]) {
+        state.dir.x = d.x * cos(rot) - d.y * sin(rot);
+        state.dir.y = d.x * sin(rot) + d.y * cos(rot);
+        state.plane.x = p.x * cos(rot) - p.y * sin(rot);
+        state.plane.y = p.x * sin(rot) + p.y * cos(rot);
+    }
+    if (keystate[SDL_SCANCODE_RIGHT]) {
+        state.dir.x = d.x * cos(-rot) - d.y * sin(-rot);
+        state.dir.y = d.x * sin(-rot) + d.y * cos(-rot);
+        state.plane.x = p.x * cos(-rot) - p.y * sin(-rot);
+        state.plane.y = p.x * sin(-rot) + p.y * cos(-rot);
+    }
+    if (keystate[SDL_SCANCODE_UP]) {
+        state.pos.x += state.dir.x * mov;
+        state.pos.y += state.dir.y * mov;
+    }
+    if (keystate[SDL_SCANCODE_DOWN]) {
+        state.pos.x -= state.dir.x * mov;
+        state.pos.y -= state.dir.y * mov;
+    }
 }
 
 int main(void) {
@@ -197,21 +220,7 @@ int main(void) {
             }
         }
         // Movement
-        const f32
-            rotspeed = 3.0f * 0.016f,
-            movespeed = 3.0f * 0.016f;
-
-        const u8 *keystate = SDL_GetKeyboardState(NULL);
-        if (keystate[SDL_SCANCODE_LEFT]) rotate(+rotspeed);
-        if (keystate[SDL_SCANCODE_RIGHT]) rotate(-rotspeed);
-        if (keystate[SDL_SCANCODE_UP]) {
-            state.pos.x += state.dir.x * movespeed;
-            state.pos.y += state.dir.y * movespeed;
-        }
-        if (keystate[SDL_SCANCODE_DOWN]) {
-            state.pos.x -= state.dir.x * movespeed;
-            state.pos.y -= state.dir.y * movespeed;
-        }
+        move();
 
         // Setup
 
