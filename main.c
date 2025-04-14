@@ -18,10 +18,25 @@ typedef int32_t         i32;
 typedef int64_t         i64;
 typedef size_t          usize;
 typedef ssize_t         isize;
+/*
+#define PI              3.14159265359f
+#define TAU             (2.0f * PI)
+#define PI_2            (PI / 2.0f)
+#define PI_4            (PI / 4.0f)
 
+#define DEG2RAD(_d)     ((_d) * (PI / 180.0f))
+#define RAD2DEG(_d)     ((_d) * (180.0f / PI))
+*/
 #define SCREEN_WIDTH    384
 #define SCREEN_HEIGHT   216
+/*
+#define EYE_Z           1.65f
+#define HFOV            DEG2RAD(90.0f)
+#define VFOV            0.5f
 
+#define ZNEAR           0.0001f
+#define ZFAR            128.0f
+*/
 typedef struct v2_s     { f32 x, y; } v2;
 typedef struct v2i_s    { i32 x, y; } v2i;
 
@@ -31,7 +46,15 @@ typedef struct v2i_s    { i32 x, y; } v2i;
 #define min(a, b)       ({ __typeof__(a) _a = (a), _b = (b); _a < _b ? _a : _b; })
 #define max(a, b)       ({ __typeof__(a) _a = (a), _b = (b); _a > _b ? _a : _b; })
 #define sign(a)         ({ __typeof__(a) _a = (a); (__typeof__(a)) (_a < 0 ? -1 : (_a > 0 ? 1 : 0)); })
-
+/*
+#define clamp(_x, _mi, _ma) \
+                        (min(max(_x, _mi), _ma))
+#define ifnan(_x, _alt) ({ __typeof__(_x) __x = (_x); isnan(__x) ? (_alt) : __x; })
+// -1 right, 0 on, 1 left
+#define point_side(_p, _a, _b) \
+                        ({__typeof__(_p) __p = (_p), __a = (_a), __b = (_b); \
+                        -(((__p.x - __a.x) * (__b.y - __a.y)) - ((__p.y - __a.y) * (__b.x - __a.x))); })
+*/
 #define MAP_SIZE        8
 static u8 MAPDATA[MAP_SIZE * MAP_SIZE] = {
     1, 1, 1, 1, 1, 1, 1, 1,
@@ -43,7 +66,22 @@ static u8 MAPDATA[MAP_SIZE * MAP_SIZE] = {
     1, 0, 0, 0, 0, 0, 0, 1,
     1, 1, 1, 1, 1, 1, 1, 1,
 };
+/*
+struct wall {
+    v2i a, b;
+    int portal;
+};
 
+// sector id for "no sector"
+#define SECTOR_NONE     0
+#define SECTOR_MAX      128
+
+struct sector {
+    int id;
+    usize firstwall, nwalls;
+    f32 zfloor, zceil;
+};
+*/
 struct {
     SDL_Window *window;
     SDL_Texture *texture;
@@ -58,28 +96,21 @@ static void verline(int x, int y0, int y1, u32 color) {
         state.pixels[(y * SCREEN_WIDTH) + x] = color;
 }
 
-static void r() {
-    for (int x = 0; x < SCREEN_WIDTH; x++)
-        verline(x, 20, SCREEN_HEIGHT - 20, 0xFFFFA500 | (x & 0xFF));
-}
-
 static void render() {
     // 1. Iterating over Screen
     for (int x = 0; x < SCREEN_WIDTH; x++) {
         // 2. Compute ray dir for this column
         const f32 xcam  = (2 * (x / (f32) (SCREEN_WIDTH))) -1;
-        const v2 dir    = { state.dir.x + state.plane.x * xcam,
-                            state.dir.y + state.plane.y * xcam
-        };
+        const v2  dir   = { state.dir.x + state.plane.x * xcam,
+                            state.dir.y + state.plane.y * xcam };
 
         // 3. Initial pos and integer tile pos
-        v2 pos = state.pos; // Starting point of ray
-        v2i ipos = { (int) pos.x, (int) pos.y }; // Storing integer map coords
+        v2  pos      = state.pos; // Starting point of ray
+        v2i ipos     = { (int) pos.x, (int) pos.y }; // Storing integer map coords
 
         // 4. Pre-get dist between x / y sides (delta)
         const v2 deltaDist = {  fabsf(dir.x) < 1e-20 ? 1e30 : fabsf(1.0f / dir.x),
-                                fabsf(dir.y) < 1e-20 ? 1e30 : fabsf(1.0f / dir.y)
-        };
+                                fabsf(dir.y) < 1e-20 ? 1e30 : fabsf(1.0f / dir.y) };
 
         // 5. Calc initial dist to dirst x / y grid lines
         v2 sideDist = { deltaDist.x * (dir.x < 0 ? (pos.x - ipos.x) : ((ipos.x + 1) - pos.x)),
@@ -88,13 +119,12 @@ static void render() {
 
         // 6. Step dir on x / y axes
         const v2i step = {  (int) sign(dir.x),
-                            (int) sign(dir.y)
-        };
+                            (int) sign(dir.y) };
 
         // 7. DDA ???
         struct {
             int val, side;
-            v2 pos;
+            v2  pos;
         } hit = { 0, 0, { 0.0f, 0.0f } };
 
         while (!hit.val) {
@@ -130,7 +160,7 @@ static void render() {
         if (hit.side == 1) {
             const u32
                 r   = ((color & 0xFF0000) >> 16) * 0.6,
-                g   = ((color & 0x00FF00) >> 8) * 0.6,
+                g   = ((color & 0x00FF00) >> 8)  * 0.6,
                 b   = (color & 0x0000FF) * 0.6;
 
             color = (0xFF000000) | (min(r, 255) << 16) | (min(g, 255) << 8) | min(b, 255);
@@ -140,16 +170,17 @@ static void render() {
         // 10. Hit point and perpendicular dist
         hit.pos = (v2) { pos.x + sideDist.x, pos.y + sideDist.y };
 
-        const f32 dperp = hit.side == 0 ? (sideDist.x - deltaDist.x) : (sideDist.y - deltaDist.y);
+        const f32 dperp = hit.side == 0 ? \
+            (sideDist.x - deltaDist.x) : (sideDist.y - deltaDist.y);
 
         const int
             h   = (int) (SCREEN_HEIGHT / dperp),
             y0  = max((SCREEN_HEIGHT / 2) - (h / 2), 0),
             y1  = min((SCREEN_HEIGHT / 2) + (h / 2), SCREEN_HEIGHT - 1);
 
-        verline(x, 0, y0, 0xFF202020);
-        verline(x, y0, y1, color);
-        verline(x, y1, SCREEN_HEIGHT - 1, 0xFF505050);
+        verline(x, 0, y0, 0xFF202020); // Gray Sky
+        verline(x, y0, y1, color); // Drawing walls
+        verline(x, y1, SCREEN_HEIGHT - 1, 0xFF505050); // Dark Gray floor
     }
 }
 
