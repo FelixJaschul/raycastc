@@ -27,7 +27,75 @@ Colors:
 0xFF800080	    Red + Blue, low values
 0x00000000	    Fully transparent black
 
-Render Help:
+Render Editor:
+
+if (ev.type == SDL_MOUSEBUTTONDOWN && ev.button.button == SDL_BUTTON_LEFT) {
+    // 1. Get local coordinates for the area that can be drawn in
+    int mx = ev.button.x - 331, my = ev.button.y - 29;
+
+    // 2. Pixel Position (local coordinates) into grid coordinates (snipping to nearest)
+    int gx = mx / TILE_SIZE, gy = my / TILE_SIZE;
+
+    // 3. If given grid Point is valid
+    if (gx >= 0 && gx < GRID_SIZE && gy >= 0 && gy < GRID_SIZE)
+        state.walls[state.wall_count++] = (v2i){ gx, gy };
+}
+
+Render Game:
+
+void render_game() {
+    for (int x = 0; x < SCREEN_WIDTH; x++) {
+        f32 xcam = 2 * (x / (f32)SCREEN_WIDTH) - 1;
+        v2 ray = { state.dir.x + state.plane.x * xcam,
+                   state.dir.y + state.plane.y * xcam };
+
+        v2 pos = state.pos;
+
+        v2i map = { (int)pos.x,
+                    (int)pos.y };
+
+        v2 delta = { fabsf(1.0f / ray.x),
+                     fabsf(1.0f / ray.y) };
+
+        v2 side = {
+            ray.x < 0 ? (pos.x - map.x) * delta.x : (map.x + 1.0 - pos.x) * delta.x,
+            ray.y < 0 ? (pos.y - map.y) * delta.y : (map.y + 1.0 - pos.y) * delta.y, };
+
+        v2i step = { sign(ray.x),
+                     sign(ray.y) };
+
+        int side_hit = 0, val = 0;
+        while (!val) {
+            if (side.x < side.y) { side.x += delta.x; map.x += step.x; side_hit = 0; }
+            else { side.y += delta.y; map.y += step.y; side_hit = 1; }
+            val = MAPDATA[map.y * 8 + map.x];
+        }
+
+        u32 color = 0;
+        switch (val) {
+            case 1: color = 0xFF0000FF; break;
+            case 2: color = 0xFF00FF00; break;
+            case 3: color = 0xFFFF0000; break;
+            case 4: color = 0xFFFF00FF; break;
+        }
+
+        if (side_hit) {
+            u32 r = ((color >> 16) & 0xFF) * 0.6;
+            u32 g = ((color >> 8) & 0xFF) * 0.6;
+            u32 b = (color & 0xFF) * 0.6;
+            color = (0xFF << 24) | (r << 16) | (g << 8) | b;
+        }
+
+        f32 dist = side_hit ? (side.y - delta.y) : (side.x - delta.x);
+        int h = (int)(SCREEN_HEIGHT / dist);
+        int y0 = max(0, SCREEN_HEIGHT / 2 - h / 2);
+        int y1 = min(SCREEN_HEIGHT, SCREEN_HEIGHT / 2 + h / 2);
+
+        verline(x, 0, y0, 0xFF202020);
+        verline(x, y0, y1, color);
+        verline(x, y1, SCREEN_HEIGHT, 0xFF505050);
+    }
+}
 
 static void render() {
     // 1. Iterating over Screen
