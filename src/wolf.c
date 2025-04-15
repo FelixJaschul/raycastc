@@ -43,7 +43,6 @@ typedef struct          { i32 x, y; } v2i;
                         min(SCREEN_HEIGHT, SCREEN_HEIGHT/2 + (a)/2) })
 #define pos(a, b, c)    ((v2){ (c).x * a - (c).y * b, (c).x * b + (c).y * a })
 
-
 u8 MAPDATA[64] = {
     1,1,1,1,1,1,1,1,
     1,0,0,0,0,0,0,1,
