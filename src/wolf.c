@@ -143,19 +143,21 @@ i32 main() {
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
         1280, 720,
-        SDL_WINDOW_RESIZABLE);
+        SDL_WINDOW_RESIZABLE
+    );
     state.renderer = SDL_CreateRenderer(
         state.window, -1,
-        SDL_RENDERER_PRESENTVSYNC);
+        SDL_RENDERER_PRESENTVSYNC
+    );
     state.texture = SDL_CreateTexture(
         state.renderer,
         SDL_PIXELFORMAT_ARGB8888,
         SDL_TEXTUREACCESS_STREAMING,
-        SCREEN_WIDTH, SCREEN_HEIGHT);
-
-    state.pos = (v2){2, 2};
-    state.dir = normalize(((v2){-1, 0.1f}));
-    state.plane = (v2){0, 0.66f};
+        SCREEN_WIDTH, SCREEN_HEIGHT
+    );
+    state.pos = (v2){ 2, 2 };
+    state.dir = normalize(((v2){ -1, 0.1f }));
+    state.plane = (v2){ 0, 0.66f };
     state.mode = 0;
 
     while (!state.quit) {
@@ -187,9 +189,23 @@ i32 main() {
             }
 
             render_game();
-            SDL_UpdateTexture(state.texture, NULL, state.pixels, SCREEN_WIDTH * 4);
-            SDL_RenderCopyEx(state.renderer, state.texture, NULL, NULL, 0.0, NULL, SDL_FLIP_VERTICAL);
-            SDL_RenderPresent(state.renderer);
+            SDL_UpdateTexture(
+                state.texture,
+                NULL,
+                state.pixels,
+                SCREEN_WIDTH * 4
+            );
+            SDL_RenderCopyEx(
+                state.renderer,
+                state.texture,
+                NULL,
+                NULL,
+                0.0, NULL,
+                SDL_FLIP_VERTICAL
+            );
+            SDL_RenderPresent(
+                state.renderer
+            );
         } else {
             SDL_Event ev;
             while (SDL_PollEvent(&ev)) {
