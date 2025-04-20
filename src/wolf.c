@@ -59,17 +59,6 @@ typedef struct          { i32 x, y; } v2i;
 #define pos(a, b, c)    ((v2){ (c).x * a - (c).y * b, \
                         (c).x * b + (c).y * a })
 
-u8 MAPDATA[64] = {
-    1,1,1,1,1,1,1,1,
-    1,0,0,0,0,0,0,1,
-    1,0,3,0,2,2,0,1,
-    1,0,3,0,0,0,0,1,
-    1,0,3,0,4,4,0,1,
-    1,0,3,0,4,0,0,1,
-    1,0,0,0,0,0,0,1,
-    1,1,1,1,1,1,1,1,
-};
-
 struct {
     SDL_Window *window;
     SDL_Renderer *renderer;
@@ -80,6 +69,16 @@ struct {
     i32 mode; // 0 = game, 1 = editor
     i32 wall_count;
     b quit;
+    u8 map[64] = {
+        1,1,1,1,1,1,1,1,
+        1,0,0,0,0,0,0,1,
+        1,0,3,0,2,2,0,1,
+        1,0,3,0,0,0,0,1,
+        1,0,3,0,4,4,0,1,
+        1,0,3,0,4,0,0,1,
+        1,0,0,0,0,0,0,1,
+        1,1,1,1,1,1,1,1,
+    };
 } state;
 
 void verline(i32 x, i32 y0, i32 y1, u32 color) {
@@ -131,7 +130,7 @@ void render_game() {
                 map.y += step.y;
                 side_hit = 1;
             }
-            val = MAPDATA[map.y * 8 + map.x];
+            val = state.map[map.y * 8 + map.x];
         }
 
         u32 color = 0;
