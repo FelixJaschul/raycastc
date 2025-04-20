@@ -126,8 +126,7 @@ void render_editor() {
         v2i p0 = state.walls[i];
         v2i p1 = state.walls[i + 1];
         if (i % 2 == 0)
-            SDL_RenderDrawLine(state.renderer, p0.x * TILE_SIZE + 332, p0.y * TILE_SIZE + 30,
-                                  p1.x * TILE_SIZE + 332, p1.y * TILE_SIZE + 30);
+            SDL_RenderDrawLine(state.renderer, p0.x + 331, p0.y + 29, p1.x + 331, p1.y + 29);
     }
 
     SDL_RenderPresent(state.renderer);
@@ -210,11 +209,15 @@ i32 main() {
                 if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_TAB) state.mode = 0;
 
                 if (ev.type == SDL_MOUSEBUTTONDOWN && ev.button.button == SDL_BUTTON_LEFT) {
-                    i32 mx = ev.button.x - 331, my = ev.button.y - 29;
-                    i32 gx = mx / TILE_SIZE, gy = my / TILE_SIZE;
-                    if (gx >= 0 && gx < GRID_SIZE && gy >= 0 && gy < GRID_SIZE)
-                        state.walls[state.wall_count++] = (v2i){ gx, gy };
+                    i32 mx = ev.button.x - 331;
+                    i32 my = ev.button.y - 29;
+
+                    if (mx >= 0 && mx < EDITOR_WIDTH && my >= 0 && my < EDITOR_HEIGHT)
+                        state.walls[state.wall_count++] = (v2i){ mx, my };
+                    else if (state.wall_count > 0)
+                        state.wall_count--;  // Remove the last added point
                 }
+
             }
 
             render_editor();
