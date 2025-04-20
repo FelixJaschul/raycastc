@@ -59,7 +59,7 @@ typedef struct          { i32 x, y; } v2i;
 #define pos(a, b, c)    ((v2){ (c).x * a - (c).y * b, \
                         (c).x * b + (c).y * a })
 
-u8 map[64] = {
+u8 MAPDATA[64] = {
     1,1,1,1,1,1,1,1,
     1,0,0,0,0,0,0,1,
     1,0,3,0,2,2,0,1,
@@ -131,7 +131,7 @@ void render_game() {
                 map.y += step.y;
                 side_hit = 1;
             }
-            val = state.map[map.y * 8 + map.x];
+            val = MAPDATA[map.y * 8 + map.x];
         }
 
         u32 color = 0;
