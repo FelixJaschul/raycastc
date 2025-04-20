@@ -222,9 +222,9 @@ i32 main() {
                 if (ev.type == SDL_QUIT) state.quit = true;
                 if (ev.type == SDL_KEYDOWN && \
                     ev.key.keysym.sym == SDLK_TAB)
-                    state.mode = 1;
+                    state.mode = 1; // Switch Game Mode
             }
-
+            // Move
             const u8 *k = SDL_GetKeyboardState(NULL);
             const f32 rot = 0.048f, mov = 0.048f;
 
@@ -244,8 +244,35 @@ i32 main() {
                 state.pos.x -= state.dir.x * mov;
                 state.pos.y -= state.dir.y * mov;
             }
-
+            // Render
             render_game();
+        } else {
+            SDL_Event ev;
+            while (SDL_PollEvent(&ev)) {
+                if (ev.type == SDL_QUIT) state.quit = true;
+                if (ev.type == SDL_KEYDOWN && \
+                    ev.key.keysym.sym == SDLK_TAB)
+                    state.mode = 0; // Switch Game Mode
+                // Draw
+                if (ev.type == SDL_MOUSEBUTTONDOWN && \
+                    ev.button.button == SDL_BUTTON_LEFT) {
+                    const i32 mx = ev.button.x - 331,
+                              my = ev.button.y - 29;
+
+                    if (mx >= 0 && mx < EDITOR_WIDTH && \
+                        my >= 0 && my < EDITOR_HEIGHT)
+                        state.walls[state.wall_count++] = (v2i){ mx, my };
+                    else if (state.wall_count > 0)
+                        state.wall_count--; // Remove the last added point
+
+                    save_map();
+                }
+            }
+            // Render
+            render_editor();
+        }
+        // Render
+        if (state.mode == 0) {
             SDL_UpdateTexture(
                 state.texture,
                 NULL,
@@ -263,30 +290,6 @@ i32 main() {
             SDL_RenderPresent(
                 state.renderer
             );
-        } else {
-            SDL_Event ev;
-            while (SDL_PollEvent(&ev)) {
-                if (ev.type == SDL_QUIT) state.quit = true;
-                if (ev.type == SDL_KEYDOWN && \
-                    ev.key.keysym.sym == SDLK_TAB)
-                    state.mode = 0;
-
-                if (ev.type == SDL_MOUSEBUTTONDOWN && \
-                    ev.button.button == SDL_BUTTON_LEFT) {
-                    i32 mx = ev.button.x - 331;
-                    i32 my = ev.button.y - 29;
-
-                    if (mx >= 0 && mx < EDITOR_WIDTH && \
-                        my >= 0 && my < EDITOR_HEIGHT)
-                        state.walls[state.wall_count++] = (v2i){ mx, my };
-                    else if (state.wall_count > 0)
-                        state.wall_count--; // Remove the last added point
-
-                    save_map();
-                }
-            }
-
-            render_editor();
         }
     }
 
