@@ -24,7 +24,7 @@ typedef struct          { i32 x, y; } v2i;
 
 #define dot(v0,v1)      ((v0).x*(v1).x+(v0).y*(v1).y)
 #define length(v)       sqrtf(dot(v,v))
-#define normalize(v)    ({v2 _v=(v);f32 l=length(_v);(v2){_v.x/l,_v.y/l};})
+#define normalize(v)    ({v2 _v=(v);f32 l=length(_v);(v2){_v.x/l,_v.y/l}; })
 #define sign(a)         ((a)<0?-1:((a)>0?1:0))
 #define min(a,b)        ((a)<(b)?(a):(b))
 #define max(a,b)        ((a)>(b)?(a):(b))
@@ -136,7 +136,7 @@ void render_editor() {
 i32 main() {
     SDL_Init(SDL_INIT_VIDEO);
     state.window = SDL_CreateWindow(
-        "raycast",
+        "WINDOW",
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
         1280, 720,
