@@ -11,6 +11,7 @@ typedef uint8_t         u8;
 typedef uint32_t        u32;
 typedef size_t          usize;
 typedef ssize_t         isize;
+typedef bool            b;
 
 typedef struct          { f32 x, y; } v2;
 typedef struct          { i32 x, y; } v2i;
@@ -19,29 +20,44 @@ typedef struct          { i32 x, y; } v2i;
 #define SCREEN_HEIGHT   216
 #define TILE_SIZE       20
 #define GRID_SIZE       32
+#define GRID_DIST_LEFT  331
+#define GRID_DIST_TOP   29
 #define EDITOR_WIDTH    (GRID_SIZE * TILE_SIZE)
 #define EDITOR_HEIGHT   (GRID_SIZE * TILE_SIZE)
 
+// General Macros
 #define dot(v0,v1)      ((v0).x*(v1).x+(v0).y*(v1).y)
 #define length(v)       sqrtf(dot(v,v))
-#define normalize(v)    ({v2 _v=(v);f32 l=length(_v);(v2){_v.x/l,_v.y/l}; })
+#define normalize(v)    ({v2 _v=(v); \
+                        f32 l=length(_v); \
+                        (v2){_v.x/l,_v.y/l}; })
 #define sign(a)         ((a)<0?-1:((a)>0?1:0))
 #define min(a,b)        ((a)<(b)?(a):(b))
 #define max(a,b)        ((a)>(b)?(a):(b))
 
+// Macros for The game renderer
 #define xcam(a)         (2 * ((a) / (f32)SCREEN_WIDTH) - 1)
-#define ray(a, b, c)    ((v2){ (a).x + (b).x * (c), (a).y + (b).y * (c) })
-#define mapcell(a)      ((v2i){ (i32)(a).x, (i32)(a).y })
-#define delta(a)        ((v2){ fabsf(1.0f / (a).x), fabsf(1.0f / (a).y) })
-#define step(a)         ((v2i){ sign((a).x), sign((a).y) })
+#define ray(a, b, c)    ((v2){ (a).x + (b).x * (c), \
+                        (a).y + (b).y * (c) })
+#define mapcell(a)      ((v2i){ (i32)(a).x, \
+                        (i32)(a).y })
+#define delta(a)        ((v2){ fabsf(1.0f / (a).x), \
+                        fabsf(1.0f / (a).y) })
+#define step(a)         ((v2i){ sign((a).x), \
+                        sign((a).y) })
 #define sd(a, b, c, d)  ((v2){ \
-                        (d).x < 0 ? ((a).x - (b).x) * (c).x : ((b).x + 1.0f - (a).x) * (c).x, \
-                        (d).y < 0 ? ((a).y - (b).y) * (c).y : ((b).y + 1.0f - (a).y) * (c).y })
+                        (d).x < 0 ? ((a).x - (b).x) * (c).x \
+                        : ((b).x + 1.0f - (a).x) * (c).x, \
+                        (d).y < 0 ? ((a).y - (b).y) * (c).y \
+                        : ((b).y + 1.0f - (a).y) * (c).y })
 #define wd(a, b, c)     ((c) ? ((a).y - (b).y) : ((a).x - (b).x))
 #define wh(a)           ((i32)(SCREEN_HEIGHT / (a)))
-#define wr(a)           ((i32[2]){ max(0, SCREEN_HEIGHT/2 - (a)/2), \
-                        min(SCREEN_HEIGHT, SCREEN_HEIGHT/2 + (a)/2) })
-#define pos(a, b, c)    ((v2){ (c).x * a - (c).y * b, (c).x * b + (c).y * a })
+#define wr(a)           ((i32[2]){ max(0, \
+                        SCREEN_HEIGHT/2 - (a)/2), \
+                        min(SCREEN_HEIGHT, \
+                        SCREEN_HEIGHT/2 + (a)/2) })
+#define pos(a, b, c)    ((v2){ (c).x * a - (c).y * b, \
+                        (c).x * b + (c).y * a })
 
 u8 MAPDATA[64] = {
     1,1,1,1,1,1,1,1,
@@ -63,7 +79,7 @@ struct {
     v2i walls[1024];
     i32 mode; // 0 = game, 1 = editor
     i32 wall_count;
-    bool quit;
+    b quit;
 } state;
 
 void verline(i32 x, i32 y0, i32 y1, u32 color) {
@@ -71,17 +87,50 @@ void verline(i32 x, i32 y0, i32 y1, u32 color) {
         state.pixels[y * SCREEN_WIDTH + x] = color;
 }
 
+void save_map() {
+    FILE *file = fopen("map.txt", "w");
+    for (i32 i = 0; i < state.wall_count; i++)
+        fprintf(file, "%d %d\n", \
+                state.walls[i].x, state.walls[i].y);
+    fclose(file);
+}
+
+void load_map() {
+    FILE *file = fopen("map.txt", "r");
+    state.wall_count = 0;
+    while (fscanf(file, "%d %d\n", \
+        &state.walls[state.wall_count].x, \
+        &state.walls[state.wall_count].y) == 2)
+        state.wall_count++;
+    fclose(file);
+}
+
 void render_game() {
     for (i32 x = 0; x < SCREEN_WIDTH; x++) {
-        f32 xcam = xcam(x);
-        v2 ray = ray(state.dir, state.plane, xcam), pos = state.pos;
-        v2i map = mapcell(pos), step = step(ray);
-        v2 delta = delta(ray), side = sd(pos, map, delta, ray);
+        f32 xcam =
+            xcam(x);
+        v2 ray =
+            ray(state.dir, state.plane, xcam),
+            pos = state.pos;
+        v2i map =
+            mapcell(pos),
+            step = step(ray);
+        v2 delta =
+            delta(ray),
+            side = sd(pos, map, delta, ray);
 
         i32 side_hit = 0, val = 0;
         while (!val) {
-            if (side.x < side.y) { side.x += delta.x; map.x += step.x; side_hit = 0; }
-            else { side.y += delta.y; map.y += step.y; side_hit = 1; }
+            if (side.x < side.y) {
+                side.x += delta.x;
+                map.x += step.x;
+                side_hit = 0;
+            }
+            else {
+                side.y += delta.y;
+                map.y += step.y;
+                side_hit = 1;
+            }
             val = MAPDATA[map.y * 8 + map.x];
         }
 
@@ -111,22 +160,30 @@ void render_game() {
 }
 
 void render_editor() {
-    SDL_SetRenderDrawColor(state.renderer, 20, 20, 20, 255);
+    SDL_SetRenderDrawColor(state.renderer,
+        20, 20, 20, 255);
     SDL_RenderClear(state.renderer);
 
-    SDL_SetRenderDrawColor(state.renderer, 50, 50, 50, 255);
+    SDL_SetRenderDrawColor(state.renderer,
+        50, 50, 50, 255);
     for (i32 y = 0; y <= GRID_SIZE; y++)
         for (i32 x = 0; x <= GRID_SIZE; x++) {
-            SDL_Rect dot = { x * TILE_SIZE + 331, y * TILE_SIZE + 29, 3, 3 };
+            SDL_Rect dot = { x * TILE_SIZE + GRID_DIST_LEFT,
+                y * TILE_SIZE + GRID_DIST_TOP, 3, 3 };
             SDL_RenderFillRect(state.renderer, &dot);
         }
 
-    SDL_SetRenderDrawColor(state.renderer, 200, 200, 200, 255);
+    SDL_SetRenderDrawColor(state.renderer,
+        200, 200, 200, 255);
     for (i32 i = 0; i + 1 < state.wall_count; i += 2) {
         v2i p0 = state.walls[i];
         v2i p1 = state.walls[i + 1];
         if (i % 2 == 0)
-            SDL_RenderDrawLine(state.renderer, p0.x + 331, p0.y + 29, p1.x + 331, p1.y + 29);
+            SDL_RenderDrawLine(state.renderer,
+                p0.x + GRID_DIST_LEFT, \
+                p0.y + GRID_DIST_TOP,
+                p1.x + GRID_DIST_LEFT, \
+                p1.y + GRID_DIST_TOP);
     }
 
     SDL_RenderPresent(state.renderer);
@@ -156,12 +213,16 @@ i32 main() {
     state.plane = (v2){ 0, 0.66f };
     state.mode = 0;
 
+    load_map();
+
     while (!state.quit) {
         if (state.mode == 0) {
             SDL_Event ev;
             while (SDL_PollEvent(&ev)) {
                 if (ev.type == SDL_QUIT) state.quit = true;
-                if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_TAB) state.mode = 1;
+                if (ev.type == SDL_KEYDOWN && \
+                    ev.key.keysym.sym == SDLK_TAB)
+                    state.mode = 1;
             }
 
             const u8 *k = SDL_GetKeyboardState(NULL);
@@ -206,18 +267,23 @@ i32 main() {
             SDL_Event ev;
             while (SDL_PollEvent(&ev)) {
                 if (ev.type == SDL_QUIT) state.quit = true;
-                if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_TAB) state.mode = 0;
+                if (ev.type == SDL_KEYDOWN && \
+                    ev.key.keysym.sym == SDLK_TAB)
+                    state.mode = 0;
 
-                if (ev.type == SDL_MOUSEBUTTONDOWN && ev.button.button == SDL_BUTTON_LEFT) {
+                if (ev.type == SDL_MOUSEBUTTONDOWN && \
+                    ev.button.button == SDL_BUTTON_LEFT) {
                     i32 mx = ev.button.x - 331;
                     i32 my = ev.button.y - 29;
 
-                    if (mx >= 0 && mx < EDITOR_WIDTH && my >= 0 && my < EDITOR_HEIGHT)
+                    if (mx >= 0 && mx < EDITOR_WIDTH && \
+                        my >= 0 && my < EDITOR_HEIGHT)
                         state.walls[state.wall_count++] = (v2i){ mx, my };
                     else if (state.wall_count > 0)
-                        state.wall_count--;  // Remove the last added point
-                }
+                        state.wall_count--; // Remove the last added point
 
+                    save_map();
+                }
             }
 
             render_editor();
