@@ -111,7 +111,8 @@ void load_map() {
 
         if (strncmp(tag, "[WALL", 5) == 0) {
             i32 x0, y0, x1, y1;
-            fscanf(file, "%d %d %d %d", &x0, &y0, &x1, &y1);
+            fscanf(file, "%d %d %d %d", \
+                &x0, &y0, &x1, &y1);
             state.walls[state.wall_count++] = (wl){
                 .p0 = {x0, y0},
                 .p1 = {x1, y1}
