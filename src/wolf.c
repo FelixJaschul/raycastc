@@ -9,12 +9,11 @@ typedef float           f32;
 typedef int             i32;
 typedef uint8_t         u8;
 typedef uint32_t        u32;
-typedef size_t          usize;
-typedef ssize_t         isize;
 typedef bool            b;
 
 typedef struct          { f32 x, y; } v2;
 typedef struct          { i32 x, y; } v2i;
+typedef struct          { v2i p0, p1; } wl;
 
 #define SCREEN_WIDTH    384
 #define SCREEN_HEIGHT   216
@@ -24,6 +23,7 @@ typedef struct          { i32 x, y; } v2i;
 #define GRID_DIST_TOP   29
 #define EDITOR_WIDTH    (GRID_SIZE * TILE_SIZE)
 #define EDITOR_HEIGHT   (GRID_SIZE * TILE_SIZE)
+#define MAPDATA_SIZE    (GRID_SIZE * GRID_SIZE)
 
 // General Macros
 #define dot(v0,v1)      ((v0).x*(v1).x+(v0).y*(v1).y)
@@ -56,16 +56,18 @@ typedef struct          { i32 x, y; } v2i;
                         SCREEN_HEIGHT/2 - (a)/2), \
                         min(SCREEN_HEIGHT, \
                         SCREEN_HEIGHT/2 + (a)/2) })
+
+// Macros for the game movement
 #define pos(a, b, c)    ((v2){ (c).x * a - (c).y * b, \
                         (c).x * b + (c).y * a })
 
-u8 MAPDATA[64] = {
+u8 MAPDATA[MAPDATA_SIZE] = {
     1,1,1,1,1,1,1,1,
     1,0,0,0,0,0,0,1,
-    1,0,3,0,2,2,0,1,
-    1,0,3,0,0,0,0,1,
-    1,0,3,0,4,4,0,1,
-    1,0,3,0,4,0,0,1,
+    1,0,1,0,1,1,0,1,
+    1,0,1,0,0,0,0,1,
+    1,0,1,0,1,1,0,1,
+    1,0,1,0,1,0,0,1,
     1,0,0,0,0,0,0,1,
     1,1,1,1,1,1,1,1,
 };
@@ -76,8 +78,8 @@ struct {
     SDL_Texture *texture;
     u32 pixels[SCREEN_WIDTH * SCREEN_HEIGHT];
     v2 pos, dir, plane;
-    v2i walls[1024];
     i32 mode; // 0 = game, 1 = editor
+    wl walls[1024]; // Array to store wall segments
     i32 wall_count;
     b quit;
 } state;
@@ -89,19 +91,33 @@ void verline(i32 x, i32 y0, i32 y1, u32 color) {
 
 void save_map() {
     FILE *file = fopen("map.txt", "w");
-    for (i32 i = 0; i < state.wall_count; i++)
-        fprintf(file, "%d %d\n", \
-                state.walls[i].x, state.walls[i].y);
+    fprintf(file, "[WALLS]\n");
+    for (i32 i = 0; i < state.wall_count; i++) {
+        fprintf(file, "[WALL%d]\n%d %d %d %d\n", i + 1,
+            state.walls[i].p0.x, state.walls[i].p0.y,
+            state.walls[i].p1.x, state.walls[i].p1.y);
+    }
     fclose(file);
 }
 
 void load_map() {
-    FILE *file = fopen("map.txt", "r");
     state.wall_count = 0;
-    while (fscanf(file, "%d %d\n", \
-        &state.walls[state.wall_count].x, \
-        &state.walls[state.wall_count].y) == 2)
-        state.wall_count++;
+    FILE *file = fopen("map.txt", "r");
+    char tag[64];
+
+    while (fscanf(file, "%63s", tag) == 1) {
+        if (strcmp(tag, "[WALLS]") == 0)
+            continue;
+
+        if (strncmp(tag, "[WALL", 5) == 0) {
+            i32 x0, y0, x1, y1;
+            fscanf(file, "%d %d %d %d", &x0, &y0, &x1, &y1);
+            state.walls[state.wall_count++] = (wl){
+                .p0 = {x0, y0},
+                .p1 = {x1, y1}
+            };
+        }
+    }
     fclose(file);
 }
 
@@ -160,32 +176,39 @@ void render_game() {
 }
 
 void render_editor() {
-    SDL_SetRenderDrawColor(state.renderer,
+    // Clear the screen with a dark color
+    SDL_SetRenderDrawColor(state.renderer, \
         20, 20, 20, 255);
     SDL_RenderClear(state.renderer);
 
-    SDL_SetRenderDrawColor(state.renderer,
+    // Draw the grid with light gray dots
+    SDL_SetRenderDrawColor(state.renderer, \
         50, 50, 50, 255);
-    for (i32 y = 0; y <= GRID_SIZE; y++)
+    for (i32 y = 0; y <= GRID_SIZE; y++) {
         for (i32 x = 0; x <= GRID_SIZE; x++) {
-            SDL_Rect dot = { x * TILE_SIZE + GRID_DIST_LEFT,
-                y * TILE_SIZE + GRID_DIST_TOP, 3, 3 };
+            SDL_Rect dot = { \
+                x * TILE_SIZE + GRID_DIST_LEFT, \
+                y * TILE_SIZE + GRID_DIST_TOP, \
+                3, 3 };
             SDL_RenderFillRect(state.renderer, &dot);
         }
-
-    SDL_SetRenderDrawColor(state.renderer,
-        200, 200, 200, 255);
-    for (i32 i = 0; i + 1 < state.wall_count; i += 2) {
-        v2i p0 = state.walls[i];
-        v2i p1 = state.walls[i + 1];
-        if (i % 2 == 0)
-            SDL_RenderDrawLine(state.renderer,
-                p0.x + GRID_DIST_LEFT, \
-                p0.y + GRID_DIST_TOP,
-                p1.x + GRID_DIST_LEFT, \
-                p1.y + GRID_DIST_TOP);
     }
 
+    // Draw the walls as lines in the editor
+    SDL_SetRenderDrawColor(state.renderer, \
+        200, 200, 200, 255);
+    for (i32 i = 0; i < state.wall_count; i++) {
+        wl wall = state.walls[i];
+        SDL_RenderDrawLine(
+            state.renderer,
+            wall.p0.x + GRID_DIST_LEFT, \
+            wall.p0.y + GRID_DIST_TOP,
+            wall.p1.x + GRID_DIST_LEFT, \
+            wall.p1.y + GRID_DIST_TOP
+        );
+    }
+
+    // Present the renderer to the screen
     SDL_RenderPresent(state.renderer);
 }
 
@@ -256,16 +279,23 @@ i32 main() {
                 // Draw
                 if (ev.type == SDL_MOUSEBUTTONDOWN && \
                     ev.button.button == SDL_BUTTON_LEFT) {
-                    const i32 mx = ev.button.x - 331,
-                              my = ev.button.y - 29;
+                    const i32 mx = ev.button.x - GRID_DIST_LEFT;
+                    const i32 my = ev.button.y - GRID_DIST_TOP;
 
-                    if (mx >= 0 && mx < EDITOR_WIDTH && \
-                        my >= 0 && my < EDITOR_HEIGHT)
-                        state.walls[state.wall_count++] = (v2i){ mx, my };
-                    else if (state.wall_count > 0)
-                        state.wall_count--; // Remove the last added point
+                    if (mx >= 0 && \
+                        mx < EDITOR_WIDTH && \
+                        my >= 0 && \
+                        my < EDITOR_HEIGHT) {
+                        if (state.wall_count % 2 == 0)
+                            state.walls[state.wall_count++] = (wl){ .p0 = {mx, my}, .p1 = {mx, my} };
+                        else {
+                            state.walls[state.wall_count - 1].p1 = (v2i){mx, my};
+                            state.wall_count++;
+                        }
 
-                    save_map();
+                        // Save the map after adding a wall
+                        save_map();
+                    }
                 }
             }
             // Render
