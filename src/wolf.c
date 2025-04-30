@@ -88,7 +88,7 @@ void load_map(void);
 void handle_mouse_motion(SDL_MouseMotionEvent* motion);
 void toggle_mouse_control(void);
 b will_collide(v2 new_pos);
-b ray_vs_segment(v2 ro, v2 rd, v2 a, v2 b, f32* out_dist, b* out_side);
+b ray_vs_segment(v2 ro, v2 rd, v2 n, v2 m, f32* out_dist, b* out_side);
 void update_player(void);
 void verline(i32 x, i32 y0, i32 y1, u32 color);
 void render_game(void);
@@ -115,7 +115,7 @@ void save_map(void) {
 void load_map(void) {
     state.wall_count = 0;
     FILE* f = fopen("map.txt", "r");
-    if (!f) return;  // Gracefully handle missing file
+    if (!f) return;  // Gracefully handle a missing file
 
     char tag[64];
     while (fscanf(f, "%63s", tag) == 1) {
@@ -183,7 +183,7 @@ void handle_key_event(SDL_KeyboardEvent* key, b down) {
 void update_player(void) {
     if (state.mode != 0) return;
 
-    // Movement is in reverse direction (forward is negative)
+    // Movement is in the reverse direction (forward is negative)
     float dx = -state.dir.x;
     float dy = -state.dir.y;
 
@@ -247,7 +247,7 @@ b will_collide(v2 new_pos) {
             continue;
         }
 
-        // Find closest point on line segment to player position
+        // Find the closest point on a line segment to the player position
         f32 t = (ap.x * ab.x + ap.y * ab.y) / ab_len_squared;
         t = CLAMP(t, 0.0f, 1.0f);
 
@@ -265,23 +265,23 @@ b will_collide(v2 new_pos) {
 }
 
 /* -------------------- RENDERING -------------------- */
-b ray_vs_segment(v2 ro, v2 rd, v2 a, v2 b, f32* out_dist, b* out_side) {
-    v2 ab = {b.x - a.x, b.y - a.y};
-    v2 ao = {ro.x - a.x, ro.y - a.y};
+b ray_vs_segment(const v2 ro, const v2 rd, const v2 n, const v2 m, f32* out_dist, b* out_side) {
+    const v2 ab = {m.x - n.x, m.y - n.y};
+    const v2 ao = {ro.x - n.x, ro.y - n.y};
 
-    // Calculate cross products for intersection test
-    f32 cross_rd_ab = rd.x * ab.y - rd.y * ab.x;
-    f32 cross_ao_rd = ao.x * rd.y - ao.y * rd.x;
-    f32 cross_ao_ab = ao.x * ab.y - ao.y * ab.x;
+    // Calculate cross-products for an intersection test
+    const f32 cross_rd_ab = rd.x * ab.y - rd.y * ab.x;
+    const f32 cross_ao_rd = ao.x * rd.y - ao.y * rd.x;
+    const f32 cross_ao_ab = ao.x * ab.y - ao.y * ab.x;
 
     // Check if ray and segment are parallel
     if (fabsf(cross_rd_ab) < 1e-6f) return false;
 
     // Calculate intersection parameters
-    f32 t = cross_ao_ab / cross_rd_ab;
-    f32 u = cross_ao_rd / cross_rd_ab;
+    const f32 t = cross_ao_ab / cross_rd_ab;
+    const f32 u = cross_ao_rd / cross_rd_ab;
 
-    // Check if intersection is valid
+    // Check if the intersection is valid
     if (t >= 0.0f && u >= 0.0f && u <= 1.0f) {
         *out_dist = t;
         *out_side = (fabsf(ab.x) < fabsf(ab.y)); // Determine which side was hit
@@ -292,11 +292,11 @@ b ray_vs_segment(v2 ro, v2 rd, v2 a, v2 b, f32* out_dist, b* out_side) {
 }
 
 void verline(i32 x, i32 y0, i32 y1, u32 color) {
-    // Clip vertical line to screen bounds
+    // Clip vertical line-to-screen bounds
     y0 = CLAMP(y0, 0, SCREEN_HEIGHT - 1);
     y1 = CLAMP(y1, 0, SCREEN_HEIGHT);
 
-    // Draw vertical line from y0 to y1 at position x
+    // Draw a vertical line from y0 to y1 at position x
     for (i32 y = y0; y < y1; y++) {
         if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
             state.pixels[y * SCREEN_WIDTH + x] = color;
@@ -310,7 +310,7 @@ void render_game(void) {
 
     // Cast rays for each screen column
     for (i32 x = 0; x < SCREEN_WIDTH; x++) {
-        // Render right-to-left for proper orientation
+        // Render right-to-left for the proper orientation
         i32 screen_x = SCREEN_WIDTH - 1 - x;
 
         // Calculate ray direction
@@ -331,11 +331,11 @@ void render_game(void) {
 
         for (i32 i = 0; i < state.wall_count; i++) {
             // Convert wall to world space
-            v2 a = {
+            v2 n = {
                 state.walls[i].p0.x / (f32)TILE_SIZE,
                 state.walls[i].p0.y / (f32)TILE_SIZE
             };
-            v2 b = {
+            v2 m = {
                 state.walls[i].p1.x / (f32)TILE_SIZE,
                 state.walls[i].p1.y / (f32)TILE_SIZE
             };
@@ -343,7 +343,7 @@ void render_game(void) {
             // Test ray intersection
             f32 dist;
             b s;
-            if (ray_vs_segment(state.pos, rd, a, b, &dist, &s)) {
+            if (ray_vs_segment(state.pos, rd, n, m, &dist, &s)) {
                 if (dist < closest) {
                     closest = dist;
                     side = s;
@@ -420,7 +420,7 @@ void render_editor(void) {
     }
 
     if (hover.x != -1) {
-        SDL_SetRenderDrawColor(state.renderer, 255, a y, 0, 255);
+        SDL_SetRenderDrawColor(state.renderer, 255, 0, 0, 255);
         SDL_Rect r = {
             hover.x + GRID_DIST_LEFT - 5,
             hover.y + GRID_DIST_TOP - 5,
@@ -438,7 +438,7 @@ int main(void) {
     SDL_Init(SDL_INIT_VIDEO);
     SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1");
 
-    // Create window, renderer and texture
+    // Create a window, renderer and texture
     state.window = SDL_CreateWindow(
         "RAYCAST",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -485,7 +485,7 @@ int main(void) {
 
     state.quit = false;
 
-    // Set mouse mode and load map
+    // Set mouse mode and load a map
     if (state.mouse_control) SDL_SetRelativeMouseMode(SDL_TRUE);
     load_map();
 
