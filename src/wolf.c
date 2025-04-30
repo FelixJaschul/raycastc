@@ -16,12 +16,11 @@
 /* -------------------- DISPLAY SETTINGS -------------------- */
 #define SCREEN_WIDTH    384
 #define SCREEN_HEIGHT   216
-#define TILE_SIZE       20
 #define GRID_SIZE       32
 #define GRID_DIST_LEFT  331
 #define GRID_DIST_TOP   29
-#define EDITOR_WIDTH    (GRID_SIZE * TILE_SIZE)
-#define EDITOR_HEIGHT   (GRID_SIZE * TILE_SIZE)
+#define EDITOR_SIZE     640
+#define EDITOR_STEP     16
 
 /* -------------------- PLAYER SETTINGS -------------------- */
 #define MOVE_SPEED      0.05f
@@ -85,9 +84,9 @@ static struct {
 /* -------------------- FUNCTION DECLARATIONS -------------------- */
 void save_map(void);
 void load_map(void);
-void handle_mouse_motion(SDL_MouseMotionEvent* motion);
-void handle_key_event(SDL_KeyboardEvent* key, b down);
 void toggle_mouse_control(void);
+void handle_key_event(const SDL_KeyboardEvent* key, b down);
+void handle_mouse_motion(const SDL_MouseMotionEvent* motion);
 void update_player(void);
 b will_collide(v2 new_pos);
 b ray_vs_segment(v2 ro, v2 rd, v2 n, v2 m, f32* out_dist, b* out_side);
@@ -135,30 +134,9 @@ void load_map(void) {
 }
 
 /* -------------------- INPUT HANDLING -------------------- */
-void handle_mouse_motion(const SDL_MouseMotionEvent* motion) {
-    if (state.mode != 0 || !state.mouse_control) return;
-
-    if (SDL_GetRelativeMouseMode()) {
-        i32 dx = motion->xrel;
-        if (dx != 0) {
-            f32 rot_amount = -dx * state.mouse_sensitivity;
-            f32 cos_rot = cosf(rot_amount);
-            f32 sin_rot = sinf(rot_amount);
-
-            // Rotate direction vector
-            f32 old_dir_x = state.dir.x;
-            state.dir.x = state.dir.x * cos_rot - state.dir.y * sin_rot;
-            state.dir.y = old_dir_x * sin_rot + state.dir.y * cos_rot;
-
-            // Rotate camera plane
-            f32 old_plane_x = state.plane.x;
-            state.plane.x = state.plane.x * cos_rot - state.plane.y * sin_rot;
-            state.plane.y = old_plane_x * sin_rot + state.plane.y * cos_rot;
-        }
-    }
-
-    state.prev_mouse_x = motion->x;
-    state.prev_mouse_y = motion->y;
+void toggle_mouse_control(void) {
+    state.mouse_control = !state.mouse_control;
+    SDL_SetRelativeMouseMode(state.mouse_control ? SDL_TRUE : SDL_FALSE);
 }
 
 void handle_key_event(const SDL_KeyboardEvent* key, const b down) {
@@ -176,9 +154,30 @@ void handle_key_event(const SDL_KeyboardEvent* key, const b down) {
     }
 }
 
-void toggle_mouse_control(void) {
-    state.mouse_control = !state.mouse_control;
-    SDL_SetRelativeMouseMode(state.mouse_control ? SDL_TRUE : SDL_FALSE);
+void handle_mouse_motion(const SDL_MouseMotionEvent* motion) {
+    if (state.mode != 0 || !state.mouse_control) return;
+
+    if (SDL_GetRelativeMouseMode()) {
+        const i32 dx = motion->xrel;
+        if (dx != 0) {
+            const f32 rot_amount = -dx * state.mouse_sensitivity;
+            const f32 cos_rot = cosf(rot_amount);
+            const f32 sin_rot = sinf(rot_amount);
+
+            // Rotate direction vector
+            const f32 old_dir_x = state.dir.x;
+            state.dir.x = state.dir.x * cos_rot - state.dir.y * sin_rot;
+            state.dir.y = old_dir_x * sin_rot + state.dir.y * cos_rot;
+
+            // Rotate camera plane
+            const f32 old_plane_x = state.plane.x;
+            state.plane.x = state.plane.x * cos_rot - state.plane.y * sin_rot;
+            state.plane.y = old_plane_x * sin_rot + state.plane.y * cos_rot;
+        }
+    }
+
+    state.prev_mouse_x = motion->x;
+    state.prev_mouse_y = motion->y;
 }
 
 /* -------------------- GAME LOGIC -------------------- */
@@ -186,12 +185,12 @@ void update_player(void) {
     if (state.mode != 0) return;
 
     // Movement is in the reverse direction (forward is negative)
-    float dx = -state.dir.x;
-    float dy = -state.dir.y;
+    const f32 dx = -state.dir.x;
+    const f32 dy = -state.dir.y;
 
     // Handle forward/backward movement
     if (state.move_forward) {
-        v2 new_pos = {
+        const v2 new_pos = {
             state.pos.x + dx * MOVE_SPEED,
             state.pos.y + dy * MOVE_SPEED
         };
@@ -199,7 +198,7 @@ void update_player(void) {
     }
 
     if (state.move_backward) {
-        v2 new_pos = {
+        const v2 new_pos = {
             state.pos.x - dx * MOVE_SPEED,
             state.pos.y - dy * MOVE_SPEED
         };
@@ -208,7 +207,7 @@ void update_player(void) {
 
     // Handle strafing movement
     if (state.strafe_left) {
-        v2 new_pos = {
+        const v2 new_pos = {
             state.pos.x - dy * MOVE_SPEED,
             state.pos.y + dx * MOVE_SPEED
         };
@@ -216,7 +215,7 @@ void update_player(void) {
     }
 
     if (state.strafe_right) {
-        v2 new_pos = {
+        const v2 new_pos = {
             state.pos.x + dy * MOVE_SPEED,
             state.pos.y - dx * MOVE_SPEED
         };
@@ -227,24 +226,24 @@ void update_player(void) {
 b will_collide(v2 new_pos) {
     for (i32 i = 0; i < state.wall_count; i++) {
         // Convert wall coordinates to world space
-        v2 a = {
-            state.walls[i].p0.x / (f32)TILE_SIZE,
-            state.walls[i].p0.y / (f32)TILE_SIZE
+        const v2 a = {
+            state.walls[i].p0.x,
+            state.walls[i].p0.y
         };
-        v2 b = {
-            state.walls[i].p1.x / (f32)TILE_SIZE,
-            state.walls[i].p1.y / (f32)TILE_SIZE
+        const v2 b = {
+            state.walls[i].p1.x,
+            state.walls[i].p1.y
         };
 
         // Calculate vectors for distance check
-        v2 ab = {b.x - a.x, b.y - a.y};
-        v2 ap = {new_pos.x - a.x, new_pos.y - a.y};
+        const v2 ab = {b.x - a.x, b.y - a.y};
+        const v2 ap = {new_pos.x - a.x, new_pos.y - a.y};
 
-        f32 ab_len_squared = SQR(ab.x) + SQR(ab.y);
+        const f32 ab_len_squared = SQR(ab.x) + SQR(ab.y);
 
         // Handle case where wall points are very close (effectively a point)
         if (ab_len_squared < 0.00001f) {
-            f32 dist_squared = SQR(ap.x) + SQR(ap.y);
+            const f32 dist_squared = SQR(ap.x) + SQR(ap.y);
             if (dist_squared < SQR(COLLISION_BUFFER)) return true;
             continue;
         }
@@ -253,13 +252,13 @@ b will_collide(v2 new_pos) {
         f32 t = (ap.x * ab.x + ap.y * ab.y) / ab_len_squared;
         t = CLAMP(t, 0.0f, 1.0f);
 
-        v2 closest = {
+        const v2 closest = {
             a.x + t * ab.x,
             a.y + t * ab.y
         };
 
         // Check if the closest point is within the collision buffer
-        f32 dist_squared = SQR(new_pos.x - closest.x) + SQR(new_pos.y - closest.y);
+        const f32 dist_squared = SQR(new_pos.x - closest.x) + SQR(new_pos.y - closest.y);
         if (dist_squared < SQR(COLLISION_BUFFER)) return true;
     }
 
@@ -313,17 +312,17 @@ void render_game(void) {
     // Cast rays for each screen column
     for (i32 x = 0; x < SCREEN_WIDTH; x++) {
         // Render right-to-left for the proper orientation
-        i32 screen_x = SCREEN_WIDTH - 1 - x;
+        const i32 screen_x = SCREEN_WIDTH - 1 - x;
 
         // Calculate ray direction
-        f32 cam = 2.f * ((f32)screen_x / (f32)SCREEN_WIDTH) - 1.f;
+        const f32 cam = 2.f * ((f32)screen_x / (f32)SCREEN_WIDTH) - 1.f;
         v2 rd = {
             state.dir.x + state.plane.x * cam,
             state.dir.y + state.plane.y * cam
         };
 
         // Normalize ray direction
-        f32 rl = sqrtf(SQR(rd.x) + SQR(rd.y));
+        const f32 rl = sqrtf(SQR(rd.x) + SQR(rd.y));
         rd.x /= rl;
         rd.y /= rl;
 
@@ -333,13 +332,13 @@ void render_game(void) {
 
         for (i32 i = 0; i < state.wall_count; i++) {
             // Convert wall to world space
-            v2 n = {
-                state.walls[i].p0.x / (f32)TILE_SIZE,
-                state.walls[i].p0.y / (f32)TILE_SIZE
+            const v2 n = {
+                state.walls[i].p0.x,
+                state.walls[i].p0.y
             };
-            v2 m = {
-                state.walls[i].p1.x / (f32)TILE_SIZE,
-                state.walls[i].p1.y / (f32)TILE_SIZE
+            const v2 m = {
+                state.walls[i].p1.x,
+                state.walls[i].p1.y
             };
 
             // Test ray intersection
@@ -352,55 +351,50 @@ void render_game(void) {
                 }
             }
         }
+        // Draw ceiling and floor
+        verline(x, 0, SCREEN_HEIGHT / 2, COLOR_CEILING);
+        verline(x, SCREEN_HEIGHT / 2, SCREEN_HEIGHT, COLOR_FLOOR);
 
         // Draw wall slice if intersection found
         if (closest < 1e9f) {
-            i32 h = (i32)(SCREEN_HEIGHT / closest);
-            i32 y0 = SCREEN_HEIGHT / 2 - h / 2;
-            i32 y1 = SCREEN_HEIGHT / 2 + h / 2;
+            const i32 h = (i32)(SCREEN_HEIGHT / closest);
+            const i32 y0 = SCREEN_HEIGHT / 2 - h / 2;
+            const i32 y1 = SCREEN_HEIGHT / 2 + h / 2;
 
-            u32 wall_color = side ? COLOR_WALL2 : COLOR_WALL1;
+            const u32 wall_color = side ? COLOR_WALL2 : COLOR_WALL1;
 
-            verline(x, 0, MAX(0, y0), COLOR_CEILING);  // Ceiling
             verline(x, MAX(0, y0), MIN(SCREEN_HEIGHT, y1), wall_color);  // Wall
-            verline(x, MIN(SCREEN_HEIGHT, y1), SCREEN_HEIGHT, COLOR_FLOOR);  // Floor
-        } else {
-            // No wall hit, draw ceiling and floor
-            verline(x, 0, SCREEN_HEIGHT / 2, COLOR_CEILING);
-            verline(x, SCREEN_HEIGHT / 2, SCREEN_HEIGHT, COLOR_FLOOR);
         }
     }
 }
 
 void render_editor(void) {
-    // Clear screen
     SDL_SetRenderDrawColor(state.renderer, 20, 20, 20, 255);
     SDL_RenderClear(state.renderer);
 
-    // Draw grid dots
+    // Grid-Punkte zeichnen
     SDL_SetRenderDrawColor(state.renderer, 50, 50, 50, 255);
-    for (i32 y = 0; y <= GRID_SIZE; y++) {
-        for (i32 x = 0; x <= GRID_SIZE; x++) {
+    for (i32 y = 0; y <= EDITOR_SIZE; y += EDITOR_STEP) {
+        for (i32 x = 0; x <= EDITOR_SIZE; x += EDITOR_STEP) {
             SDL_Rect dot = {
-                x * TILE_SIZE + GRID_DIST_LEFT,
-                y * TILE_SIZE + GRID_DIST_TOP,
+                x + GRID_DIST_LEFT,
+                y + GRID_DIST_TOP,
                 3, 3
             };
             SDL_RenderFillRect(state.renderer, &dot);
         }
     }
 
-    // Draw walls
+    // Wände zeichnen
     SDL_SetRenderDrawColor(state.renderer, 200, 200, 200, 255);
     for (i32 i = 0; i < state.wall_count; i++) {
-        wall_line w = state.walls[i];
+        const wall_line w = state.walls[i];
         SDL_RenderDrawLine(
             state.renderer,
             w.p0.x + GRID_DIST_LEFT, w.p0.y + GRID_DIST_TOP,
             w.p1.x + GRID_DIST_LEFT, w.p1.y + GRID_DIST_TOP
         );
     }
-
     // Highlight hovered vertex
     i32 mx, my;
     SDL_GetMouseState(&mx, &my);
@@ -408,11 +402,11 @@ void render_editor(void) {
     f32 best = 10.0f;
 
     for (i32 i = 0; i < state.wall_count; i++) {
-        v2i pts[2] = {state.walls[i].p0, state.walls[i].p1};
+        const v2i pts[2] = {state.walls[i].p0, state.walls[i].p1};
         for (i32 j = 0; j < 2; j++) {
-            i32 vx = pts[j].x + GRID_DIST_LEFT;
-            i32 vy = pts[j].y + GRID_DIST_TOP;
-            f32 d = hypotf((f32)(mx - vx), (f32)(my - vy));
+            const i32 vx = pts[j].x + GRID_DIST_LEFT;
+            const i32 vy = pts[j].y + GRID_DIST_TOP;
+            const f32 d = hypotf((f32)(mx - vx), (f32)(my - vy));
 
             if (d < best) {
                 best = d;
@@ -423,7 +417,7 @@ void render_editor(void) {
 
     if (hover.x != -1) {
         SDL_SetRenderDrawColor(state.renderer, 255, 0, 0, 255);
-        SDL_Rect r = {
+        const SDL_Rect r = {
             hover.x + GRID_DIST_LEFT - 5,
             hover.y + GRID_DIST_TOP - 5,
             10, 10
@@ -466,12 +460,12 @@ i32 main(void) {
     state.prev_mouse_x = 0;
     state.prev_mouse_y = 0;
 
-    state.pos = (v2){2, 2};
+    state.pos = (v2){40, 40};
     state.dir = (v2){1, 0};
     state.plane = (v2){0, 0.66f};
 
     // Normalize direction vector
-    f32 dl = sqrtf(SQR(state.dir.x) + SQR(state.dir.y));
+    const f32 dl = sqrtf(SQR(state.dir.x) + SQR(state.dir.y));
     state.dir.x /= dl;
     state.dir.y /= dl;
 
@@ -535,11 +529,11 @@ i32 main(void) {
                         f32 best = 10.0f;
 
                         for (i32 i = 0; i < state.wall_count; i++) {
-                            v2i pts[2] = {state.walls[i].p0, state.walls[i].p1};
+                            const v2i pts[2] = {state.walls[i].p0, state.walls[i].p1};
                             for (i32 j = 0; j < 2; j++) {
-                                i32 vx = pts[j].x;
-                                i32 vy = pts[j].y;
-                                f32 d = hypotf((f32)(mx - vx), (f32)(my - vy));
+                                const i32 vx = pts[j].x;
+                                const i32 vy = pts[j].y;
+                                const f32 d = hypotf((f32)(mx - vx), (f32)(my - vy));
 
                                 if (d < best) {
                                     best = d;
@@ -555,7 +549,7 @@ i32 main(void) {
                         }
 
                         // Place wall point if in editor bounds
-                        if (mx >= 0 && mx < EDITOR_WIDTH && my >= 0 && my < EDITOR_HEIGHT) {
+                        if (mx >= 0 && mx < GRID_SIZE && my >= 0 && my < GRID_SIZE) {
                             if (state.wall_count % 2 == 0) {
                                 // Place first point of wall
                                 state.walls[state.wall_count / 2].p0 = (v2i){mx, my};
