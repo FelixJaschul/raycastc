@@ -1,20 +1,19 @@
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <math.h>
+#include <string.h>
 #include <SDL2/SDL.h>
 
+/* -------------------- MACROS AND DEFINITIONS -------------------- */
 #define ASSERT(_e, ...) do { if (!(_e)) { fprintf(stderr, __VA_ARGS__); exit(1); } } while (0)
+#define MIN(a, b)       ((a) < (b) ? (a) : (b))
+#define MAX(a, b)       ((a) > (b) ? (a) : (b))
+#define CLAMP(x, a, b)  (MIN(MAX((x), (a)), (b)))
+#define ABS(x)          ((x) < 0 ? -(x) : (x))
+#define SQR(x)          ((x) * (x))
 
-typedef float           f32;
-typedef int             i32;
-typedef uint8_t         u8;
-typedef uint32_t        u32;
-typedef bool            b;
-
-typedef struct          { f32 x, y; } v2;
-typedef struct          { i32 x, y; } v2i;
-typedef struct          { v2i p0, p1; } wl;
-
+/* -------------------- DISPLAY SETTINGS -------------------- */
 #define SCREEN_WIDTH    384
 #define SCREEN_HEIGHT   216
 #define TILE_SIZE       20
@@ -23,307 +22,582 @@ typedef struct          { v2i p0, p1; } wl;
 #define GRID_DIST_TOP   29
 #define EDITOR_WIDTH    (GRID_SIZE * TILE_SIZE)
 #define EDITOR_HEIGHT   (GRID_SIZE * TILE_SIZE)
-#define MAPDATA_SIZE    (GRID_SIZE * GRID_SIZE)
 
-// General Macros
-#define dot(v0,v1)      ((v0).x*(v1).x+(v0).y*(v1).y)
-#define length(v)       sqrtf(dot(v,v))
-#define normalize(v)    ({v2 _v=(v); \
-                        f32 l=length(_v); \
-                        (v2){_v.x/l,_v.y/l}; })
-#define sign(a)         ((a)<0?-1:((a)>0?1:0))
-#define min(a,b)        ((a)<(b)?(a):(b))
-#define max(a,b)        ((a)>(b)?(a):(b))
+/* -------------------- PLAYER SETTINGS -------------------- */
+#define MOVE_SPEED      0.05f
+#define ROT_SPEED       0.03f
+#define COLLISION_BUFFER 0.01f
 
-// Macros for The game renderer
-#define xcam(a)         (2 * ((a) / (f32)SCREEN_WIDTH) - 1)
-#define ray(a, b, c)    ((v2){ (a).x + (b).x * (c), \
-                        (a).y + (b).y * (c) })
-#define mapcell(a)      ((v2i){ (i32)(a).x, \
-                        (i32)(a).y })
-#define delta(a)        ((v2){ fabsf(1.0f / (a).x), \
-                        fabsf(1.0f / (a).y) })
-#define step(a)         ((v2i){ sign((a).x), \
-                        sign((a).y) })
-#define sd(a, b, c, d)  ((v2){ \
-                        (d).x < 0 ? ((a).x - (b).x) * (c).x \
-                        : ((b).x + 1.0f - (a).x) * (c).x, \
-                        (d).y < 0 ? ((a).y - (b).y) * (c).y \
-                        : ((b).y + 1.0f - (a).y) * (c).y })
-#define wd(a, b, c)     ((c) ? ((a).y - (b).y) : ((a).x - (b).x))
-#define wh(a)           ((i32)(SCREEN_HEIGHT / (a)))
-#define wr(a)           ((i32[2]){ max(0, \
-                        SCREEN_HEIGHT/2 - (a)/2), \
-                        min(SCREEN_HEIGHT, \
-                        SCREEN_HEIGHT/2 + (a)/2) })
+/* -------------------- COLORS -------------------- */
+#define COLOR_BLACK     0xFF000000
+#define COLOR_FLOOR     0xFF505050
+#define COLOR_CEILING   0xFF202020
+#define COLOR_WALL1     0xFF7070FF  // Wall side 1
+#define COLOR_WALL2     0xFF6060A0  // Wall side 2
+#define COLOR_GRID      0xFF323232
+#define COLOR_DOT       0xFF505050
+#define COLOR_LINE      0xFFC8C8C8
+#define COLOR_SELECT    0xFFFF0000
 
-// Macros for the game movement
-#define pos(a, b, c)    ((v2){ (c).x * a - (c).y * b, \
-                        (c).x * b + (c).y * a })
+/* -------------------- TYPE DEFINITIONS -------------------- */
+typedef float           f32;
+typedef int             i32;
+typedef uint8_t         u8;
+typedef uint32_t        u32;
+typedef bool            b;
 
-u8 MAPDATA[MAPDATA_SIZE] = {
-    1,1,1,1,1,1,1,1,
-    1,0,0,0,0,0,0,1,
-    1,0,1,0,1,1,0,1,
-    1,0,1,0,0,0,0,1,
-    1,0,1,0,1,1,0,1,
-    1,0,1,0,1,0,0,1,
-    1,0,0,0,0,0,0,1,
-    1,1,1,1,1,1,1,1,
-};
+typedef struct { f32 x; f32 y; } v2;
+typedef struct { i32 x; i32 y; } v2i;
+typedef struct { v2i p0; v2i p1; } wall_line;
 
-struct {
-    SDL_Window *window;
-    SDL_Renderer *renderer;
-    SDL_Texture *texture;
-    u32 pixels[SCREEN_WIDTH * SCREEN_HEIGHT];
-    v2 pos, dir, plane;
-    i32 mode; // 0 = game, 1 = editor
-    wl walls[1024]; // Array to store wall segments
-    i32 wall_count;
-    b quit;
+/* -------------------- GLOBAL STATE -------------------- */
+static struct {
+    SDL_Window*     window;
+    SDL_Renderer*   renderer;
+    SDL_Texture*    texture;
+    u32             pixels[SCREEN_WIDTH * SCREEN_HEIGHT];
+
+    v2              pos;
+    v2              dir;
+    v2              plane;
+
+    i32             mode;
+    wall_line       walls[1024];
+    wall_line       undo_stack[1024];
+    wall_line       redo_stack[1024];
+
+    i32             wall_count;
+    i32             undo_count;
+    i32             redo_count;
+
+    b               quit;
+    b               move_forward;
+    b               move_backward;
+    b               strafe_left;
+    b               strafe_right;
+    b               mouse_control;
+
+    i32             prev_mouse_x;
+    i32             prev_mouse_y;
+    f32             mouse_sensitivity;
 } state;
 
-void verline(i32 x, i32 y0, i32 y1, u32 color) {
-    for (i32 y = y0; y < y1; y++)
-        state.pixels[y * SCREEN_WIDTH + x] = color;
-}
+/* -------------------- FUNCTION DECLARATIONS -------------------- */
+void save_map(void);
+void load_map(void);
+void handle_mouse_motion(SDL_MouseMotionEvent* motion);
+void toggle_mouse_control(void);
+b will_collide(v2 new_pos);
+b ray_vs_segment(v2 ro, v2 rd, v2 a, v2 b, f32* out_dist, b* out_side);
+void update_player(void);
+void verline(i32 x, i32 y0, i32 y1, u32 color);
+void render_game(void);
+void render_editor(void);
+void handle_key_event(SDL_KeyboardEvent* key, b down);
 
-void save_map() {
-    FILE *file = fopen("map.txt", "w");
-    fprintf(file, "[WALLS]\n");
+/* -------------------- MAP SAVING/LOADING -------------------- */
+void save_map(void) {
+    FILE* f = fopen("map.txt", "w");
+    fprintf(f, "[WALLS]\n");
+
     for (i32 i = 0; i < state.wall_count; i++) {
-        fprintf(file, "[WALL%d]\n%d %d %d %d\n", i + 1,
-            state.walls[i].p0.x, state.walls[i].p0.y,
-            state.walls[i].p1.x, state.walls[i].p1.y);
+        fprintf(f, "[WALL%d]\n%d %d %d %d\n",
+                i + 1,
+                state.walls[i].p0.x,
+                state.walls[i].p0.y,
+                state.walls[i].p1.x,
+                state.walls[i].p1.y);
     }
-    fclose(file);
+
+    fclose(f);
 }
 
-void load_map() {
+void load_map(void) {
     state.wall_count = 0;
-    FILE *file = fopen("map.txt", "r");
+    FILE* f = fopen("map.txt", "r");
+    if (!f) return;  // Gracefully handle missing file
+
     char tag[64];
-
-    while (fscanf(file, "%63s", tag) == 1) {
-        if (strcmp(tag, "[WALLS]") == 0)
-            continue;
-
+    while (fscanf(f, "%63s", tag) == 1) {
         if (strncmp(tag, "[WALL", 5) == 0) {
             i32 x0, y0, x1, y1;
-            fscanf(file, "%d %d %d %d", \
-                &x0, &y0, &x1, &y1);
-            state.walls[state.wall_count++] = (wl){
-                .p0 = {x0, y0},
-                .p1 = {x1, y1}
-            };
+            if (fscanf(f, "%d %d %d %d", &x0, &y0, &x1, &y1) == 4) {
+                state.walls[state.wall_count++] = (wall_line){
+                    .p0 = {x0, y0},
+                    .p1 = {x1, y1}
+                };
+            }
         }
     }
-    fclose(file);
+
+    fclose(f);
 }
 
-void render_game() {
+/* -------------------- INPUT HANDLING -------------------- */
+void handle_mouse_motion(SDL_MouseMotionEvent* motion) {
+    if (state.mode != 0 || !state.mouse_control) return;
+
+    if (SDL_GetRelativeMouseMode()) {
+        i32 dx = motion->xrel;
+        if (dx != 0) {
+            f32 rot_amount = -dx * state.mouse_sensitivity;
+            f32 cos_rot = cosf(rot_amount);
+            f32 sin_rot = sinf(rot_amount);
+
+            // Rotate direction vector
+            f32 old_dir_x = state.dir.x;
+            state.dir.x = state.dir.x * cos_rot - state.dir.y * sin_rot;
+            state.dir.y = old_dir_x * sin_rot + state.dir.y * cos_rot;
+
+            // Rotate camera plane
+            f32 old_plane_x = state.plane.x;
+            state.plane.x = state.plane.x * cos_rot - state.plane.y * sin_rot;
+            state.plane.y = old_plane_x * sin_rot + state.plane.y * cos_rot;
+        }
+    }
+
+    state.prev_mouse_x = motion->x;
+    state.prev_mouse_y = motion->y;
+}
+
+void toggle_mouse_control(void) {
+    state.mouse_control = !state.mouse_control;
+    SDL_SetRelativeMouseMode(state.mouse_control ? SDL_TRUE : SDL_FALSE);
+}
+
+void handle_key_event(SDL_KeyboardEvent* key, b down) {
+    if (down && key->keysym.sym == SDLK_m) {
+        toggle_mouse_control();
+        return;
+    }
+
+    switch (key->keysym.sym) {
+        case SDLK_w: state.move_forward = down; break;
+        case SDLK_s: state.move_backward = down; break;
+        case SDLK_a: state.strafe_left = down; break;
+        case SDLK_d: state.strafe_right = down; break;
+    }
+}
+
+/* -------------------- GAME LOGIC -------------------- */
+void update_player(void) {
+    if (state.mode != 0) return;
+
+    // Movement is in reverse direction (forward is negative)
+    float dx = -state.dir.x;
+    float dy = -state.dir.y;
+
+    // Handle forward/backward movement
+    if (state.move_forward) {
+        v2 new_pos = {
+            state.pos.x + dx * MOVE_SPEED,
+            state.pos.y + dy * MOVE_SPEED
+        };
+        if (!will_collide(new_pos)) state.pos = new_pos;
+    }
+
+    if (state.move_backward) {
+        v2 new_pos = {
+            state.pos.x - dx * MOVE_SPEED,
+            state.pos.y - dy * MOVE_SPEED
+        };
+        if (!will_collide(new_pos)) state.pos = new_pos;
+    }
+
+    // Handle strafing movement
+    if (state.strafe_left) {
+        v2 new_pos = {
+            state.pos.x - dy * MOVE_SPEED,
+            state.pos.y + dx * MOVE_SPEED
+        };
+        if (!will_collide(new_pos)) state.pos = new_pos;
+    }
+
+    if (state.strafe_right) {
+        v2 new_pos = {
+            state.pos.x + dy * MOVE_SPEED,
+            state.pos.y - dx * MOVE_SPEED
+        };
+        if (!will_collide(new_pos)) state.pos = new_pos;
+    }
+}
+
+b will_collide(v2 new_pos) {
+    for (i32 i = 0; i < state.wall_count; i++) {
+        // Convert wall coordinates to world space
+        v2 a = {
+            state.walls[i].p0.x / (f32)TILE_SIZE,
+            state.walls[i].p0.y / (f32)TILE_SIZE
+        };
+        v2 b = {
+            state.walls[i].p1.x / (f32)TILE_SIZE,
+            state.walls[i].p1.y / (f32)TILE_SIZE
+        };
+
+        // Calculate vectors for distance check
+        v2 ab = {b.x - a.x, b.y - a.y};
+        v2 ap = {new_pos.x - a.x, new_pos.y - a.y};
+
+        f32 ab_len_squared = SQR(ab.x) + SQR(ab.y);
+
+        // Handle case where wall points are very close (effectively a point)
+        if (ab_len_squared < 0.00001f) {
+            f32 dist_squared = SQR(ap.x) + SQR(ap.y);
+            if (dist_squared < SQR(COLLISION_BUFFER)) return true;
+            continue;
+        }
+
+        // Find closest point on line segment to player position
+        f32 t = (ap.x * ab.x + ap.y * ab.y) / ab_len_squared;
+        t = CLAMP(t, 0.0f, 1.0f);
+
+        v2 closest = {
+            a.x + t * ab.x,
+            a.y + t * ab.y
+        };
+
+        // Check if closest point is within collision buffer
+        f32 dist_squared = SQR(new_pos.x - closest.x) + SQR(new_pos.y - closest.y);
+        if (dist_squared < SQR(COLLISION_BUFFER)) return true;
+    }
+
+    return false;
+}
+
+/* -------------------- RENDERING -------------------- */
+b ray_vs_segment(v2 ro, v2 rd, v2 a, v2 b, f32* out_dist, b* out_side) {
+    v2 ab = {b.x - a.x, b.y - a.y};
+    v2 ao = {ro.x - a.x, ro.y - a.y};
+
+    // Calculate cross products for intersection test
+    f32 cross_rd_ab = rd.x * ab.y - rd.y * ab.x;
+    f32 cross_ao_rd = ao.x * rd.y - ao.y * rd.x;
+    f32 cross_ao_ab = ao.x * ab.y - ao.y * ab.x;
+
+    // Check if ray and segment are parallel
+    if (fabsf(cross_rd_ab) < 1e-6f) return false;
+
+    // Calculate intersection parameters
+    f32 t = cross_ao_ab / cross_rd_ab;
+    f32 u = cross_ao_rd / cross_rd_ab;
+
+    // Check if intersection is valid
+    if (t >= 0.0f && u >= 0.0f && u <= 1.0f) {
+        *out_dist = t;
+        *out_side = (fabsf(ab.x) < fabsf(ab.y)); // Determine which side was hit
+        return true;
+    }
+
+    return false;
+}
+
+void verline(i32 x, i32 y0, i32 y1, u32 color) {
+    // Clip vertical line to screen bounds
+    y0 = CLAMP(y0, 0, SCREEN_HEIGHT - 1);
+    y1 = CLAMP(y1, 0, SCREEN_HEIGHT);
+
+    // Draw vertical line from y0 to y1 at position x
+    for (i32 y = y0; y < y1; y++) {
+        if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
+            state.pixels[y * SCREEN_WIDTH + x] = color;
+        }
+    }
+}
+
+void render_game(void) {
+    // Clear screen buffer
+    memset(state.pixels, 0, sizeof(state.pixels));
+
+    // Cast rays for each screen column
     for (i32 x = 0; x < SCREEN_WIDTH; x++) {
-        f32 xcam =
-            xcam(x);
-        v2 ray =
-            ray(state.dir, state.plane, xcam),
-            pos = state.pos;
-        v2i map =
-            mapcell(pos),
-            step = step(ray);
-        v2 delta =
-            delta(ray),
-            side = sd(pos, map, delta, ray);
+        // Render right-to-left for proper orientation
+        i32 screen_x = SCREEN_WIDTH - 1 - x;
 
-        i32 side_hit = 0, val = 0;
-        while (!val) {
-            if (side.x < side.y) {
-                side.x += delta.x;
-                map.x += step.x;
-                side_hit = 0;
+        // Calculate ray direction
+        f32 cam = 2.f * ((f32)screen_x / (f32)SCREEN_WIDTH) - 1.f;
+        v2 rd = {
+            state.dir.x + state.plane.x * cam,
+            state.dir.y + state.plane.y * cam
+        };
+
+        // Normalize ray direction
+        f32 rl = sqrtf(SQR(rd.x) + SQR(rd.y));
+        rd.x /= rl;
+        rd.y /= rl;
+
+        // Find closest wall intersection
+        f32 closest = 1e9f;
+        b side = 0;
+
+        for (i32 i = 0; i < state.wall_count; i++) {
+            // Convert wall to world space
+            v2 a = {
+                state.walls[i].p0.x / (f32)TILE_SIZE,
+                state.walls[i].p0.y / (f32)TILE_SIZE
+            };
+            v2 b = {
+                state.walls[i].p1.x / (f32)TILE_SIZE,
+                state.walls[i].p1.y / (f32)TILE_SIZE
+            };
+
+            // Test ray intersection
+            f32 dist;
+            b s;
+            if (ray_vs_segment(state.pos, rd, a, b, &dist, &s)) {
+                if (dist < closest) {
+                    closest = dist;
+                    side = s;
+                }
             }
-            else {
-                side.y += delta.y;
-                map.y += step.y;
-                side_hit = 1;
-            }
-            val = MAPDATA[map.y * 8 + map.x];
         }
 
-        u32 color = 0;
-        switch (val) {
-            case 1: color = 0xFF0000FF; break;
-            case 2: color = 0xFF00FF00; break;
-            case 3: color = 0xFFFF0000; break;
-            case 4: color = 0xFFFF00FF; break;
+        // Draw wall slice if intersection found
+        if (closest < 1e9f) {
+            i32 h = (i32)(SCREEN_HEIGHT / closest);
+            i32 y0 = SCREEN_HEIGHT / 2 - h / 2;
+            i32 y1 = SCREEN_HEIGHT / 2 + h / 2;
+
+            u32 wall_color = side ? COLOR_WALL2 : COLOR_WALL1;
+
+            verline(x, 0, MAX(0, y0), COLOR_CEILING);  // Ceiling
+            verline(x, MAX(0, y0), MIN(SCREEN_HEIGHT, y1), wall_color);  // Wall
+            verline(x, MIN(SCREEN_HEIGHT, y1), SCREEN_HEIGHT, COLOR_FLOOR);  // Floor
+        } else {
+            // No wall hit, draw ceiling and floor
+            verline(x, 0, SCREEN_HEIGHT / 2, COLOR_CEILING);
+            verline(x, SCREEN_HEIGHT / 2, SCREEN_HEIGHT, COLOR_FLOOR);
         }
-
-        if (side_hit) {
-            u32 r = ((color >> 16) & 0xFF) * 0.6;
-            u32 g = ((color >> 8) & 0xFF) * 0.6;
-            u32 b = (color & 0xFF) * 0.6;
-            color = (0xFF << 24) | (r << 16) | (g << 8) | b;
-        }
-
-        f32 dist = wd(side, delta, side_hit);
-        i32 h = wh(dist);
-        i32 *yr = wr(h);
-
-        verline(x, 0, yr[0], 0xFF202020);
-        verline(x, yr[0], yr[1], color);
-        verline(x, yr[1], SCREEN_HEIGHT, 0xFF505050);
     }
 }
 
-void render_editor() {
-    // Clear the screen with a dark color
-    SDL_SetRenderDrawColor(state.renderer, \
-        20, 20, 20, 255);
+void render_editor(void) {
+    // Clear screen
+    SDL_SetRenderDrawColor(state.renderer, 20, 20, 20, 255);
     SDL_RenderClear(state.renderer);
 
-    // Draw the grid with light gray dots
-    SDL_SetRenderDrawColor(state.renderer, \
-        50, 50, 50, 255);
+    // Draw grid dots
+    SDL_SetRenderDrawColor(state.renderer, 50, 50, 50, 255);
     for (i32 y = 0; y <= GRID_SIZE; y++) {
         for (i32 x = 0; x <= GRID_SIZE; x++) {
-            SDL_Rect dot = { \
-                x * TILE_SIZE + GRID_DIST_LEFT, \
-                y * TILE_SIZE + GRID_DIST_TOP, \
-                3, 3 };
+            SDL_Rect dot = {
+                x * TILE_SIZE + GRID_DIST_LEFT,
+                y * TILE_SIZE + GRID_DIST_TOP,
+                3, 3
+            };
             SDL_RenderFillRect(state.renderer, &dot);
         }
     }
 
-    // Draw the walls as lines in the editor
-    SDL_SetRenderDrawColor(state.renderer, \
-        200, 200, 200, 255);
+    // Draw walls
+    SDL_SetRenderDrawColor(state.renderer, 200, 200, 200, 255);
     for (i32 i = 0; i < state.wall_count; i++) {
-        wl wall = state.walls[i];
+        wall_line w = state.walls[i];
         SDL_RenderDrawLine(
             state.renderer,
-            wall.p0.x + GRID_DIST_LEFT, \
-            wall.p0.y + GRID_DIST_TOP,
-            wall.p1.x + GRID_DIST_LEFT, \
-            wall.p1.y + GRID_DIST_TOP
+            w.p0.x + GRID_DIST_LEFT, w.p0.y + GRID_DIST_TOP,
+            w.p1.x + GRID_DIST_LEFT, w.p1.y + GRID_DIST_TOP
         );
     }
 
-    // Present the renderer to the screen
+    // Highlight hovered vertex
+    int mx, my;
+    SDL_GetMouseState(&mx, &my);
+    v2i hover = {-1, -1};
+    f32 best = 10.0f;
+
+    for (i32 i = 0; i < state.wall_count; i++) {
+        v2i pts[2] = {state.walls[i].p0, state.walls[i].p1};
+        for (int j = 0; j < 2; j++) {
+            i32 vx = pts[j].x + GRID_DIST_LEFT;
+            i32 vy = pts[j].y + GRID_DIST_TOP;
+            f32 d = hypotf((f32)(mx - vx), (f32)(my - vy));
+
+            if (d < best) {
+                best = d;
+                hover = pts[j];
+            }
+        }
+    }
+
+    if (hover.x != -1) {
+        SDL_SetRenderDrawColor(state.renderer, 255, a y, 0, 255);
+        SDL_Rect r = {
+            hover.x + GRID_DIST_LEFT - 5,
+            hover.y + GRID_DIST_TOP - 5,
+            10, 10
+        };
+        SDL_RenderDrawRect(state.renderer, &r);
+    }
+
     SDL_RenderPresent(state.renderer);
 }
 
-i32 main() {
+/* -------------------- MAIN FUNCTION -------------------- */
+int main(void) {
+    // Initialize SDL
     SDL_Init(SDL_INIT_VIDEO);
+    SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1");
+
+    // Create window, renderer and texture
     state.window = SDL_CreateWindow(
-        "WINDOW",
-        SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED,
+        "RAYCAST",
+        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         1280, 720,
         SDL_WINDOW_RESIZABLE
     );
+
     state.renderer = SDL_CreateRenderer(
         state.window, -1,
         SDL_RENDERER_PRESENTVSYNC
     );
+
     state.texture = SDL_CreateTexture(
         state.renderer,
         SDL_PIXELFORMAT_ARGB8888,
         SDL_TEXTUREACCESS_STREAMING,
         SCREEN_WIDTH, SCREEN_HEIGHT
     );
-    state.pos = (v2){ 2, 2 };
-    state.dir = normalize(((v2){ -1, 0.1f }));
-    state.plane = (v2){ 0, 0.66f };
-    state.mode = 0;
 
+    // Initialize game state
+    state.mouse_control = true;
+    state.mouse_sensitivity = 0.002f;
+    state.prev_mouse_x = 0;
+    state.prev_mouse_y = 0;
+
+    state.pos = (v2){2, 2};
+    state.dir = (v2){1, 0};
+    state.plane = (v2){0, 0.66f};
+
+    // Normalize direction vector
+    f32 dl = sqrtf(SQR(state.dir.x) + SQR(state.dir.y));
+    state.dir.x /= dl;
+    state.dir.y /= dl;
+
+    state.mode = 0;
+    state.wall_count = 0;
+    state.undo_count = 0;
+    state.redo_count = 0;
+
+    state.move_forward = false;
+    state.move_backward = false;
+    state.strafe_left = false;
+    state.strafe_right = false;
+
+    state.quit = false;
+
+    // Set mouse mode and load map
+    if (state.mouse_control) SDL_SetRelativeMouseMode(SDL_TRUE);
     load_map();
 
+    // Main game loop
     while (!state.quit) {
-        if (state.mode == 0) {
-            SDL_Event ev;
-            while (SDL_PollEvent(&ev)) {
-                if (ev.type == SDL_QUIT) state.quit = true;
-                if (ev.type == SDL_KEYDOWN && \
-                    ev.key.keysym.sym == SDLK_TAB)
-                    state.mode = 1; // Switch Game Mode
-            }
-            // Move
-            const u8 *k = SDL_GetKeyboardState(NULL);
-            const f32 rot = 0.048f, mov = 0.048f;
+        // Process events
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev)) {
+            switch (ev.type) {
+                case SDL_QUIT:
+                    state.quit = true;
+                    break;
 
-            if (k[SDL_SCANCODE_LEFT]) {
-                state.dir = pos(cosf(rot), sinf(rot), state.dir);
-                state.plane = pos(cosf(rot), sinf(rot), state.plane);
-            }
-            if (k[SDL_SCANCODE_RIGHT]) {
-                state.dir = pos(cosf(-rot), sinf(-rot), state.dir);
-                state.plane = pos(cosf(-rot), sinf(-rot), state.plane);
-            }
-            if (k[SDL_SCANCODE_UP]) {
-                state.pos.x += state.dir.x * mov;
-                state.pos.y += state.dir.y * mov;
-            }
-            if (k[SDL_SCANCODE_DOWN]) {
-                state.pos.x -= state.dir.x * mov;
-                state.pos.y -= state.dir.y * mov;
-            }
-            // Render
-            render_game();
-        } else {
-            SDL_Event ev;
-            while (SDL_PollEvent(&ev)) {
-                if (ev.type == SDL_QUIT) state.quit = true;
-                if (ev.type == SDL_KEYDOWN && \
-                    ev.key.keysym.sym == SDLK_TAB)
-                    state.mode = 0; // Switch Game Mode
-                // Draw
-                if (ev.type == SDL_MOUSEBUTTONDOWN && \
-                    ev.button.button == SDL_BUTTON_LEFT) {
-                    const i32 mx = ev.button.x - GRID_DIST_LEFT;
-                    const i32 my = ev.button.y - GRID_DIST_TOP;
+                case SDL_KEYDOWN:
+                    if (ev.key.keysym.sym == SDLK_TAB) {
+                        // Toggle between game and editor mode
+                        state.mode = state.mode == 0 ? 1 : 0;
+                        if (state.mode == 0 && state.mouse_control) {
+                            SDL_SetRelativeMouseMode(SDL_TRUE);
+                        } else {
+                            SDL_SetRelativeMouseMode(SDL_FALSE);
+                        }
+                    } else if (ev.key.keysym.sym == SDLK_ESCAPE) {
+                        state.quit = true;
+                    } else {
+                        handle_key_event(&ev.key, true);
+                    } break;
 
-                    if (mx >= 0 && \
-                        mx < EDITOR_WIDTH && \
-                        my >= 0 && \
-                        my < EDITOR_HEIGHT) {
-                        if (state.wall_count % 2 == 0)
-                            state.walls[state.wall_count++] = (wl){ .p0 = {mx, my}, .p1 = {mx, my} };
-                        else {
-                            state.walls[state.wall_count - 1].p1 = (v2i){mx, my};
-                            state.wall_count++;
+                case SDL_KEYUP:
+                    handle_key_event(&ev.key, false);
+                    break;
+
+                case SDL_MOUSEMOTION:
+                    handle_mouse_motion(&ev.motion);
+                    break;
+
+                case SDL_MOUSEBUTTONDOWN:
+                    if (state.mode == 1 && ev.button.button == SDL_BUTTON_LEFT) {
+                        // Handle editor click
+                        int mx = ev.button.x - GRID_DIST_LEFT;
+                        int my = ev.button.y - GRID_DIST_TOP;
+
+                        // Check if clicked near existing vertex
+                        v2i hover = {-1, -1};
+                        f32 best = 10.0f;
+
+                        for (i32 i = 0; i < state.wall_count; i++) {
+                            v2i pts[2] = {state.walls[i].p0, state.walls[i].p1};
+                            for (int j = 0; j < 2; j++) {
+                                i32 vx = pts[j].x;
+                                i32 vy = pts[j].y;
+                                f32 d = hypotf((f32)(mx - vx), (f32)(my - vy));
+
+                                if (d < best) {
+                                    best = d;
+                                    hover = pts[j];
+                                }
+                            }
                         }
 
-                        // Save the map after adding a wall
-                        save_map();
-                    }
-                }
+                        // Snap to vertex if close enough
+                        if (hover.x != -1 && best < 10.0f) {
+                            mx = hover.x;
+                            my = hover.y;
+                        }
+
+                        // Place wall point if in editor bounds
+                        if (mx >= 0 && mx < EDITOR_WIDTH && my >= 0 && my < EDITOR_HEIGHT) {
+                            if (state.wall_count % 2 == 0) {
+                                // Place first point of wall
+                                state.walls[state.wall_count / 2].p0 = (v2i){mx, my};
+                                state.walls[state.wall_count / 2].p1 = (v2i){mx, my};
+                                state.wall_count++;
+                            } else {
+                                // Place second point of wall and save
+                                state.walls[(state.wall_count - 1) / 2].p1 = (v2i){mx, my};
+                                state.wall_count++;
+                                save_map();
+                            }
+                        }
+                    } break;
             }
-            // Render
-            render_editor();
         }
-        // Render
+
+        // Update game state
+        update_player();
+
+        // Render based on current mode
         if (state.mode == 0) {
-            SDL_UpdateTexture(
-                state.texture,
-                NULL,
-                state.pixels,
-                SCREEN_WIDTH * 4
-            );
+            // Game mode
+            render_game();
+            SDL_UpdateTexture(state.texture, NULL, state.pixels, SCREEN_WIDTH * 4);
+            SDL_RenderClear(state.renderer);
             SDL_RenderCopyEx(
                 state.renderer,
                 state.texture,
-                NULL,
-                NULL,
-                0.0, NULL,
+                NULL, NULL,
+                0, NULL,
                 SDL_FLIP_VERTICAL
             );
-            SDL_RenderPresent(
-                state.renderer
-            );
+            SDL_RenderPresent(state.renderer);
+        } else {
+            // Editor mode
+            render_editor();
         }
     }
 
+    // Clean up resources
+    SDL_DestroyTexture(state.texture);
+    SDL_DestroyRenderer(state.renderer);
+    SDL_DestroyWindow(state.window);
     SDL_Quit();
+
     return 0;
 }

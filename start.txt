@@ -1,3 +1,4 @@
+clear
 cc src/wolf.c -o main \
   -I/opt/homebrew/include/SDL2 \
   -L/opt/homebrew/lib \

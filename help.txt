@@ -27,21 +27,63 @@ Colors:
 0xFF800080	    Red + Blue, low values
 0x00000000	    Fully transparent black
 
-Render Editor:
+Render Game 2:
 
-if (ev.type == SDL_MOUSEBUTTONDOWN && ev.button.button == SDL_BUTTON_LEFT) {
-    // 1. Get local coordinates for the area that can be drawn in
-    int mx = ev.button.x - 331, my = ev.button.y - 29;
+void render_game() {
+    for (i32 x = 0; x < SCREEN_WIDTH; x++) {
+        f32 xcam =
+            xcam(x);
+        v2 ray =
+            ray(state.dir, state.plane, xcam),
+            pos = state.pos;
+        v2i map =
+            mapcell(pos),
+            step = step(ray);
+        v2 delta =
+            delta(ray),
+            side = sd(pos, map, delta, ray);
 
-    // 2. Pixel Position (local coordinates) into grid coordinates (snipping to nearest)
-    int gx = mx / TILE_SIZE, gy = my / TILE_SIZE;
+        i32 side_hit = 0, val = 0;
+        while (!val) {
+            if (side.x < side.y) {
+                side.x += delta.x;
+                map.x += step.x;
+                side_hit = 0;
+            }
+            else {
+                side.y += delta.y;
+                map.y += step.y;
+                side_hit = 1;
+            }
+            val = MAPDATA[map.y * 8 + map.x];
+        }
 
-    // 3. If given grid Point is valid
-    if (gx >= 0 && gx < GRID_SIZE && gy >= 0 && gy < GRID_SIZE)
-        state.walls[state.wall_count++] = (v2i){ gx, gy };
+        u32 color = 0;
+        switch (val) {
+            case 1: color = 0xFF0000FF; break;
+            case 2: color = 0xFF00FF00; break;
+            case 3: color = 0xFFFF0000; break;
+            case 4: color = 0xFFFF00FF; break;
+        }
+
+        if (side_hit) {
+            u32 r = ((color >> 16) & 0xFF) * 0.6;
+            u32 g = ((color >> 8) & 0xFF) * 0.6;
+            u32 b = (color & 0xFF) * 0.6;
+            color = (0xFF << 24) | (r << 16) | (g << 8) | b;
+        }
+
+        f32 dist = wd(side, delta, side_hit);
+        i32 h = wh(dist);
+        i32 *yr = wr(h);
+
+        verline(x, 0, yr[0], 0xFF202020);
+        verline(x, yr[0], yr[1], color);
+        verline(x, yr[1], SCREEN_HEIGHT, 0xFF505050);
+    }
 }
 
-Render Game:
+Render Game 1:
 
 void render_game() {
     for (int x = 0; x < SCREEN_WIDTH; x++) {
@@ -94,93 +136,5 @@ void render_game() {
         verline(x, 0, y0, 0xFF202020);
         verline(x, y0, y1, color);
         verline(x, y1, SCREEN_HEIGHT, 0xFF505050);
-    }
-}
-
-static void render() {
-    // 1. Iterating over Screen
-    for (int x = 0; x < SCREEN_WIDTH; x++) {
-        // 2. Compute ray dir for this column
-        const f32 xcam  = (2 * (x / (f32) (SCREEN_WIDTH))) -1;
-        const v2  dir   = { state.dir.x + state.plane.x * xcam,
-                            state.dir.y + state.plane.y * xcam };
-
-        // 3. Initial pos and integer tile pos
-        v2  pos      = state.pos; // Starting point of ray
-        v2i ipos     = { (int) pos.x, (int) pos.y }; // Storing integer map coords
-
-        // 4. Pre-get dist between x / y sides (delta)
-        const v2 deltaDist = {  fabsf(dir.x) < 1e-20 ? 1e30 : fabsf(1.0f / dir.x),
-                                fabsf(dir.y) < 1e-20 ? 1e30 : fabsf(1.0f / dir.y) };
-
-        // 5. Calc initial dist to dirst x / y grid lines
-        v2 sideDist = { deltaDist.x * (dir.x < 0 ? (pos.x - ipos.x) : ((ipos.x + 1) - pos.x)),
-                        deltaDist.y * (dir.y < 0 ? (pos.y - ipos.y) : ((ipos.y + 1) - pos.y))
-        }; // How fast ray has to go till first x / y wall boundary
-
-        // 6. Step dir on x / y axes
-        const v2i step = {  (int) sign(dir.x),
-                            (int) sign(dir.y) };
-
-        // 7. DDA ???
-        struct {
-            int val, side;
-            v2  pos;
-        } hit = { 0, 0, { 0.0f, 0.0f } };
-
-        while (!hit.val) {
-            if (sideDist.x < sideDist.y) {
-                sideDist.x += deltaDist.x;
-                ipos.x += step.x;
-                hit.side = 0;
-            }
-            else {
-                sideDist.y += deltaDist.y;
-                ipos.y += step.y;
-                hit.side = 1;
-            }
-
-            // ASSERT( ipos.x >= 0 && ipos.x < MAP_SIZE && ipos.y >= 0 && ipos.y < MAP_SIZE, "DDA out of Bounds");
-
-            hit.val = MAPDATA[ipos.y * MAP_SIZE + ipos.x];
-        }   // -- March along the grid until wall is hit
-            // -- sideDist => next side boundary
-            // -- hit.side => weather x (0) or y (1) was crossed
-            // -- Loop ends when a non-zero value (wall) is found in the map
-
-        // 8. Color based on map value
-        u32 color = 0;
-        switch (hit.val) {
-            case 1: color = 0xFF0000FF; break;
-            case 2: color = 0xFF00FF00; break;
-            case 3: color = 0xFFFF0000; break;
-            case 4: color = 0xFFFF00FF; break;
-        }
-
-        // 9. Walls on y-Sides are darker
-        if (hit.side == 1) {
-            const u32
-                r   = ((color & 0xFF0000) >> 16) * 0.6,
-                g   = ((color & 0x00FF00) >> 8)  * 0.6,
-                b   = (color & 0x0000FF) * 0.6;
-
-            color = (0xFF000000) | (min(r, 255) << 16) | (min(g, 255) << 8) | min(b, 255);
-        } // Darkens color of ray hit wall from the y-axis side
-
-
-        // 10. Hit point and perpendicular dist
-        hit.pos = (v2) { pos.x + sideDist.x, pos.y + sideDist.y };
-
-        const f32 dperp = hit.side == 0 ? \
-            (sideDist.x - deltaDist.x) : (sideDist.y - deltaDist.y);
-
-        const int
-            h   = (int) (SCREEN_HEIGHT / dperp),
-            y0  = max((SCREEN_HEIGHT / 2) - (h / 2), 0),
-            y1  = min((SCREEN_HEIGHT / 2) + (h / 2), SCREEN_HEIGHT - 1);
-
-        verline(x, 0, y0, 0xFF202020); // Gray Sky
-        verline(x, y0, y1, color); // Drawing walls
-        verline(x, y1, SCREEN_HEIGHT - 1, 0xFF505050); // Dark Gray floor
     }
 }
