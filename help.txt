@@ -27,6 +27,20 @@ Colors:
 0xFF800080	    Red + Blue, low values
 0x00000000	    Fully transparent black
 
+Map:
+
+[WALLS]
+[WALL1]
+42 43 43 603
+[WALL2]
+43 603 602 604
+[WALL3]
+602 604 42 282
+[WALL4]
+42 282 601 282
+[WALL5]
+601 282 42 43
+
 Render Game 2:
 
 void render_game() {
