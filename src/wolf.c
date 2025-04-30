@@ -402,14 +402,14 @@ void render_editor(void) {
     }
 
     // Highlight hovered vertex
-    int mx, my;
+    i32 mx, my;
     SDL_GetMouseState(&mx, &my);
     v2i hover = {-1, -1};
     f32 best = 10.0f;
 
     for (i32 i = 0; i < state.wall_count; i++) {
         v2i pts[2] = {state.walls[i].p0, state.walls[i].p1};
-        for (int j = 0; j < 2; j++) {
+        for (i32 j = 0; j < 2; j++) {
             i32 vx = pts[j].x + GRID_DIST_LEFT;
             i32 vy = pts[j].y + GRID_DIST_TOP;
             f32 d = hypotf((f32)(mx - vx), (f32)(my - vy));
@@ -435,7 +435,7 @@ void render_editor(void) {
 }
 
 /* -------------------- MAIN FUNCTION -------------------- */
-int main(void) {
+i32 main(void) {
     // Initialize SDL
     SDL_Init(SDL_INIT_VIDEO);
     SDL_SetHint(SDL_HINT_MOUSE_RELATIVE_MODE_WARP, "1");
@@ -527,8 +527,8 @@ int main(void) {
                 case SDL_MOUSEBUTTONDOWN:
                     if (state.mode == 1 && ev.button.button == SDL_BUTTON_LEFT) {
                         // Handle editor click
-                        int mx = ev.button.x - GRID_DIST_LEFT;
-                        int my = ev.button.y - GRID_DIST_TOP;
+                        i32 mx = ev.button.x - GRID_DIST_LEFT;
+                        i32 my = ev.button.y - GRID_DIST_TOP;
 
                         // Check if clicked near an existing vertex
                         v2i hover = {-1, -1};
@@ -536,7 +536,7 @@ int main(void) {
 
                         for (i32 i = 0; i < state.wall_count; i++) {
                             v2i pts[2] = {state.walls[i].p0, state.walls[i].p1};
-                            for (int j = 0; j < 2; j++) {
+                            for (i32 j = 0; j < 2; j++) {
                                 i32 vx = pts[j].x;
                                 i32 vy = pts[j].y;
                                 f32 d = hypotf((f32)(mx - vx), (f32)(my - vy));
