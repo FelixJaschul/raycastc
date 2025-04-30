@@ -134,7 +134,7 @@ void load_map(void) {
 }
 
 /* -------------------- INPUT HANDLING -------------------- */
-void handle_mouse_motion(SDL_MouseMotionEvent* motion) {
+void handle_mouse_motion(const SDL_MouseMotionEvent* motion) {
     if (state.mode != 0 || !state.mouse_control) return;
 
     if (SDL_GetRelativeMouseMode()) {
@@ -165,7 +165,7 @@ void toggle_mouse_control(void) {
     SDL_SetRelativeMouseMode(state.mouse_control ? SDL_TRUE : SDL_FALSE);
 }
 
-void handle_key_event(SDL_KeyboardEvent* key, b down) {
+void handle_key_event(const SDL_KeyboardEvent* key, const b down) {
     if (down && key->keysym.sym == SDLK_m) {
         toggle_mouse_control();
         return;
@@ -176,6 +176,7 @@ void handle_key_event(SDL_KeyboardEvent* key, b down) {
         case SDLK_s: state.move_backward = down; break;
         case SDLK_a: state.strafe_left = down; break;
         case SDLK_d: state.strafe_right = down; break;
+        default: break;
     }
 }
 
@@ -256,7 +257,7 @@ b will_collide(v2 new_pos) {
             a.y + t * ab.y
         };
 
-        // Check if closest point is within collision buffer
+        // Check if the closest point is within the collision buffer
         f32 dist_squared = SQR(new_pos.x - closest.x) + SQR(new_pos.y - closest.y);
         if (dist_squared < SQR(COLLISION_BUFFER)) return true;
     }
@@ -325,7 +326,7 @@ void render_game(void) {
         rd.x /= rl;
         rd.y /= rl;
 
-        // Find closest wall intersection
+        // Find the closest wall intersection
         f32 closest = 1e9f;
         b side = 0;
 
@@ -528,7 +529,7 @@ int main(void) {
                         int mx = ev.button.x - GRID_DIST_LEFT;
                         int my = ev.button.y - GRID_DIST_TOP;
 
-                        // Check if clicked near existing vertex
+                        // Check if clicked near an existing vertex
                         v2i hover = {-1, -1};
                         f32 best = 10.0f;
 
@@ -567,6 +568,7 @@ int main(void) {
                             }
                         }
                     } break;
+                default: break;
             }
         }
 
