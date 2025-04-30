@@ -94,6 +94,7 @@ void verline(i32 x, i32 y0, i32 y1, u32 color);
 void render_game(void);
 void render_editor(void);
 void handle_key_event(SDL_KeyboardEvent* key, b down);
+i32 main(void);
 
 /* -------------------- MAP SAVING/LOADING -------------------- */
 void save_map(void) {
