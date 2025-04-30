@@ -86,14 +86,14 @@ static struct {
 void save_map(void);
 void load_map(void);
 void handle_mouse_motion(SDL_MouseMotionEvent* motion);
+void handle_key_event(SDL_KeyboardEvent* key, b down);
 void toggle_mouse_control(void);
+void update_player(void);
 b will_collide(v2 new_pos);
 b ray_vs_segment(v2 ro, v2 rd, v2 n, v2 m, f32* out_dist, b* out_side);
-void update_player(void);
 void verline(i32 x, i32 y0, i32 y1, u32 color);
 void render_game(void);
 void render_editor(void);
-void handle_key_event(SDL_KeyboardEvent* key, b down);
 i32 main(void);
 
 /* -------------------- MAP SAVING/LOADING -------------------- */
@@ -161,11 +161,6 @@ void handle_mouse_motion(const SDL_MouseMotionEvent* motion) {
     state.prev_mouse_y = motion->y;
 }
 
-void toggle_mouse_control(void) {
-    state.mouse_control = !state.mouse_control;
-    SDL_SetRelativeMouseMode(state.mouse_control ? SDL_TRUE : SDL_FALSE);
-}
-
 void handle_key_event(const SDL_KeyboardEvent* key, const b down) {
     if (down && key->keysym.sym == SDLK_m) {
         toggle_mouse_control();
@@ -179,6 +174,11 @@ void handle_key_event(const SDL_KeyboardEvent* key, const b down) {
         case SDLK_d: state.strafe_right = down; break;
         default: break;
     }
+}
+
+void toggle_mouse_control(void) {
+    state.mouse_control = !state.mouse_control;
+    SDL_SetRelativeMouseMode(state.mouse_control ? SDL_TRUE : SDL_FALSE);
 }
 
 /* -------------------- GAME LOGIC -------------------- */
