@@ -27,8 +27,8 @@
 #define COLOR_BLACK     0xFF000000
 #define COLOR_FLOOR     0xFF505050
 #define COLOR_CEILING   0xFF202020
-#define COLOR_WALL1     0xFF7070FF  // Wall side 1
-#define COLOR_WALL2     0xFF6060A0  // Wall side 2
+#define COLOR_WALL1     0xFF7070FF
+#define COLOR_WALL2     0xFF6060A0
 #define COLOR_GRID      0xFF323232
 #define COLOR_DOT       0xFF505050
 #define COLOR_LINE      0xFFC8C8C8
