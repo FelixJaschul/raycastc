@@ -1,136 +1,6 @@
-#include "all.h"
+#include "f_main.h"
 
 #define ASSERT(_e, ...) if (!(_e)) { fprintf(stderr, __VA_ARGS__); exit(1); }
-
-typedef float    f32;
-typedef double   f64;
-typedef uint8_t  u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-typedef int8_t   i8;
-typedef int16_t  i16;
-typedef int32_t  i32;
-typedef int64_t  i64;
-typedef size_t   usize;
-typedef ssize_t  isize;
-
-#define PI 3.14159265359f
-#define TAU (2.0f * PI)
-#define PI_2 (PI / 2.0f)
-#define PI_4 (PI / 4.0f)
-
-#define DEG2RAD(_d) ((_d) * (PI / 180.0f))
-#define RAD2DEG(_d) ((_d) * (180.0f / PI))
-
-#define SCREEN_WIDTH 384
-#define SCREEN_HEIGHT 216
-
-#define EYE_Z 1.65f
-#define HFOV DEG2RAD(90.0f)
-#define VFOV 0.5f
-
-#define ZNEAR 0.0001f
-#define ZFAR  128.0f
-
-typedef struct v2_s { f32 x, y; } v2;
-typedef struct v2i_s { i32 x, y; } v2i;
-
-#define v2_to_v2i(_v) ({ __typeof__(_v) __v = (_v); (v2i) { __v.x, __v.y }; })
-#define v2i_to_v2(_v) ({ __typeof__(_v) __v = (_v); (v2) { __v.x, __v.y }; })
-
-#define dot(_v0, _v1) ({ __typeof__(_v0) __v0 = (_v0), __v1 = (_v1); \
-		(__v0.x * __v1.x) + (__v0.y * __v1.y); })
-#define length(_vl) ({ __typeof__(_vl) __vl = (_vl); sqrtf(dot(__vl, __vl)); })
-#define normalize(_vn) ({ __typeof__(_vn) __vn = (_vn); const f32 l = length(__vn); \
-		(__typeof__(_vn)) { __vn.x / l, __vn.y / l }; })
-#define min(_a, _b) ({ __typeof__(_a) __a = (_a), __b = (_b); __a < __b ? __a : __b; })
-#define max(_a, _b) ({ __typeof__(_a) __a = (_a), __b = (_b); __a > __b ? __a : __b; })
-#define clamp(_x, _mi, _ma) (min(max(_x, _mi), _ma))
-#define ifnan(_x, _alt) ({ __typeof__(_x) __x = (_x); isnan(__x) ? (_alt) : __x; })
-
-// -1 right, 0 on, 1 left
-#define point_side(_p, _a, _b) ({ __typeof__(_p) __p = (_p), __a = (_a), __b = (_b); \
-        -(((__p.x - __a.x) * (__b.y - __a.y)) - ((__p.y - __a.y) * (__b.x - __a.x))); })
-
-// rotate vector v by angle a
-#define rotate(v, a) ({ (v.x * cos(a)) - (v.y * sin(a)), (v.x * sin(a)) + (v.y * cos(a)); })
-
-// see: https://en.wikipedia.org/wiki/Line–line_intersection
-// compute intersection of two line segments, returns (NAN, NAN) if there is
-// no intersection.
-static inline v2 intersect_segs(v2 a0, v2 a1, v2 b0, v2 b1) {
-    const f32 d = ((a0.x - a1.x) * (b0.y - b1.y)) - ((a0.y - a1.y) * (b0.x - b1.x));
-
-    if (fabsf(d) < 0.000001f) { return (v2) { NAN, NAN }; }
-
-    const f32 t = (((a0.x - b0.x) * (b0.y - b1.y)) - ((a0.y - b0.y) * (b0.x - b1.x))) / d;
-    const f32 u = (((a0.x - b0.x) * (a0.y - a1.y)) - ((a0.y - b0.y) * (a0.x - a1.x))) / d;
-
-    return (t >= 0 && t <= 1 && u >= 0 && u <= 1) ?
-        ((v2) { a0.x + (t * (a1.x - a0.x)), a0.y + (t * (a1.y - a0.y)) }) : ((v2) { NAN, NAN });
-}
-
-static inline u32 abgr_mul(u32 col, u32 a) {
-    const u32 br = ((col & 0xFF00FF) * a) >> 8;
-    const u32 g  = ((col & 0x00FF00) * a) >> 8;
-
-    return 0xFF000000 | (br & 0xFF00FF) | (g & 0x00FF00);
-}
-
-struct wall {
-    v2i a, b;
-    int portal;
-};
-
-// sector id for "no sector"
-#define SECTOR_NONE 0
-#define SECTOR_MAX 128
-
-struct sector {
-    int id;
-    usize firstwall, nwalls;
-    f32 zfloor, zceil;
-};
-
-static struct {
-    SDL_Window *window;
-    SDL_Renderer *renderer;
-    SDL_Texture *texture, *debug;
-    u32 *pixels;
-    bool quit;
-
-    struct { struct sector arr[32]; usize n; } sectors;
-    struct { struct wall arr[128]; usize n; } walls;
-
-    u16 y_lo[SCREEN_WIDTH], y_hi[SCREEN_WIDTH];
-
-    struct {
-        v2 pos;
-        f32 angle, anglecos, anglesin;
-        int sector;
-    } camera;
-
-    bool sleepy;
-} state;
-
-// convert angle in [-(HFOV / 2)..+(HFOV / 2)] to X coordinate
-static inline int screen_angle_to_x(f32 angle) {
-    return ((int) (SCREEN_WIDTH / 2)) * (1.0f - tan(((angle + (HFOV / 2.0)) / HFOV) * PI_2 - PI_4));
-}
-
-// noramlize angle to +/-PI
-#define normalize_angle(a) ({ a - (TAU * floor((a + PI) / TAU)); });
-
-// world space -> camera space (translate and rotate)
-static inline v2 world_pos_to_camera(v2 p) {
-    const v2 u = { p.x - state.camera.pos.x, p.y - state.camera.pos.y };
-
-    return (v2) {
-        u.x * state.camera.anglesin - u.y * state.camera.anglecos,
-        u.x * state.camera.anglecos + u.y * state.camera.anglesin,
-    };
-}
 
 static void present();
 
@@ -423,7 +293,7 @@ static void present() {
     SDL_RenderPresent(state.renderer);
 }
 
-int main(int argc, char *argv[]) {
+int main() {
     ASSERT(!SDL_Init(SDL_INIT_VIDEO), "SDL failed to initialize: %s", SDL_GetError());
 
     state.window = SDL_CreateWindow("raycast", SDL_WINDOWPOS_CENTERED_DISPLAY(0),
