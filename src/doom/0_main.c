@@ -1,5 +1,7 @@
 #include "0_main.h"
 
+#include "m_map.h"
+
 #define ASSERT(_e, ...) if (!(_e)) { fprintf(stderr, __VA_ARGS__); exit(1); }
 
 static void present();
@@ -57,13 +59,13 @@ static int load_sectors(const char *path) {
                                &sector->zceil) != 5) {
                         retval = -5; goto done;
                     }
-                }; break;
+                } break;
                 default: retval = -6; goto done;
             }
         }
     }
 
-    if (ferror(f)) { retval = -128; goto done; }
+    if (ferror(f)) { retval = -128; }
 
 	done:
     fclose(f);
@@ -76,7 +78,7 @@ static void verline(int x, int y0, int y1, u32 color) {
     }
 }
 
-// point is in sector if it is on the left side of all walls
+// the point is in sector if it is on the left side of all walls
 static bool point_in_sector(const struct sector *sector, v2 p) {
     for (usize i = 0; i < sector->nwalls; i++) {
         const struct wall *wall = &state.walls.arr[sector->firstwall + i];
@@ -95,7 +97,7 @@ static void render() {
         state.y_lo[i] = 0;
     }
 
-    // track if sector has already been drawn
+    // track if a sector has already been drawn
     bool sectdraw[SECTOR_MAX];
     memset(sectdraw, 0, sizeof(sectdraw));
 
@@ -115,7 +117,7 @@ static void render() {
     };
 
     while (queue.n != 0) {
-        // grab tail of queue
+        // grab tail of the queue
         struct queue_entry entry = queue.arr[--queue.n];
 
         if (sectdraw[entry.id]) {
@@ -145,7 +147,7 @@ static void render() {
             f32 ap0 = normalize_angle(atan2(cp0.y, cp0.x) - PI_2);
             f32 ap1 = normalize_angle(atan2(cp1.y, cp1.x) - PI_2);
 
-            // clip against view frustum if both angles are not clearly within
+            // clip against view frustum if both angles are not clear within
             // HFOV
             if (cp0.y < ZNEAR
                 || cp1.y < ZNEAR
@@ -179,7 +181,7 @@ static void render() {
             const int tx0 = screen_angle_to_x(ap0);
             const int tx1 = screen_angle_to_x(ap1);
 
-            // bounds check against portal window
+            // bounds check against a portal window
             if (tx0 > entry.x1) { continue; }
             if (tx1 < entry.x0) { continue; }
 
@@ -316,7 +318,7 @@ int main() {
     state.camera.sector = 1;
 
     int ret = 0;
-    ASSERT(!(ret = load_sectors("res/level.txt")), "error while loading sectors: %d", ret);
+    ASSERT(!((ret = load_sectors("res/level.txt"))), "error while loading sectors: %d", ret);
     printf("loaded %zu sectors with %zu walls", state.sectors.n, state.walls.n);
 
     while (!state.quit) {
@@ -377,7 +379,7 @@ int main() {
             int found = SECTOR_NONE;
 
             while (n != 0) {
-                // get front of queue and advance to next
+                // get front of the queue and advance to the next
                 const int id = queue[i];
                 i = (i + 1) % (QUEUE_MAX);
                 n--;
