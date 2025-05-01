@@ -18,5 +18,6 @@ static struct {
         int sector;
     } camera;
 
+    bool mode;
     bool sleepy;
 } state;
