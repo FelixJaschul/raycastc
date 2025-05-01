@@ -24,7 +24,9 @@ static int load_sectors(const char *path) {
         // skip line, empty or comment
         if (!*p || *p == '#') {
             continue;
-        } else if (*p == '[') {
+        }
+
+        if (*p == '[') {
             strncpy(buf, p + 1, sizeof(buf));
             const char *section = strtok(buf, "]");
             if (!section) { retval = -2; goto done; }
@@ -34,29 +36,29 @@ static int load_sectors(const char *path) {
             else { retval = -3; goto done; }
         } else {
             switch (ss) {
-            case SCAN_WALL: {
-                struct wall *wall = &state.walls.arr[state.walls.n++];
-                if (sscanf(p, "%d %d %d %d %d",
-                        &wall->a.x,
-                        &wall->a.y,
-                        &wall->b.x,
-                        &wall->b.y,
-                        &wall->portal) != 5) {
-                    retval = -4; goto done;
-                }
-            }; break;
-            case SCAN_SECTOR: {
-                struct sector *sector = &state.sectors.arr[state.sectors.n++];
-                if (sscanf(p, "%d %zu %zu %f %f",
-                        &sector->id,
-                        &sector->firstwall,
-                        &sector->nwalls,
-                        &sector->zfloor,
-                        &sector->zceil) != 5) {
-                    retval = -5; goto done;
-                }
-            }; break;
-            default: retval = -6; goto done;
+                case SCAN_WALL: {
+                    struct wall *wall = &state.walls.arr[state.walls.n++];
+                    if (sscanf(p, "%d %d %d %d %d",
+                               &wall->a.x,
+                               &wall->a.y,
+                               &wall->b.x,
+                               &wall->b.y,
+                               &wall->portal) != 5) {
+                        retval = -4; goto done;
+                    }
+                }; break;
+                case SCAN_SECTOR: {
+                    struct sector *sector = &state.sectors.arr[state.sectors.n++];
+                    if (sscanf(p, "%d %zu %zu %f %f",
+                               &sector->id,
+                               &sector->firstwall,
+                               &sector->nwalls,
+                               &sector->zfloor,
+                               &sector->zceil) != 5) {
+                        retval = -5; goto done;
+                    }
+                }; break;
+                default: retval = -6; goto done;
             }
         }
     }
