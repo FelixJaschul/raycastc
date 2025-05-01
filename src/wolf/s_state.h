@@ -1,7 +1,5 @@
 #pragma once
 
-#include "all.h"
-
 static struct {
     SDL_Window*     window;
     SDL_Renderer*   renderer;
