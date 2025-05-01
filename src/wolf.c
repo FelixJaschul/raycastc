@@ -5,7 +5,6 @@
 #include <string.h>
 #include <SDL2/SDL.h>
 
-/* -------------------- MACROS AND DEFINITIONS -------------------- */
 #define ASSERT(_e, ...) do { if (!(_e)) { fprintf(stderr, __VA_ARGS__); exit(1); } } while (0)
 #define MIN(a, b)       ((a) < (b) ? (a) : (b))
 #define MAX(a, b)       ((a) > (b) ? (a) : (b))
@@ -13,7 +12,6 @@
 #define ABS(x)          ((x) < 0 ? -(x) : (x))
 #define SQR(x)          ((x) * (x))
 
-/* -------------------- DISPLAY SETTINGS -------------------- */
 #define SCREEN_WIDTH    384
 #define SCREEN_HEIGHT   216
 #define GRID_SIZE       32
@@ -22,12 +20,10 @@
 #define EDITOR_SIZE     640
 #define EDITOR_STEP     16
 
-/* -------------------- PLAYER SETTINGS -------------------- */
 #define MOVE_SPEED      0.05f
 #define ROT_SPEED       0.03f
 #define COLL_BUFFER     0.01f
 
-/* -------------------- COLORS -------------------- */
 #define COLOR_BLACK     0xFF000000
 #define COLOR_FLOOR     0xFF505050
 #define COLOR_CEILING   0xFF202020
@@ -38,7 +34,6 @@
 #define COLOR_LINE      0xFFC8C8C8
 #define COLOR_SELECT    0xFFFF0000
 
-/* -------------------- TYPE DEFINITIONS -------------------- */
 typedef float           f32;
 typedef int             i32;
 typedef uint8_t         u8;
@@ -49,7 +44,6 @@ typedef struct { f32 x; f32 y; } v2;
 typedef struct { i32 x; i32 y; } v2i;
 typedef struct { v2i p0; v2i p1; } wall_line;
 
-/* -------------------- GLOBAL STATE -------------------- */
 static struct {
     SDL_Window*     window;
     SDL_Renderer*   renderer;
@@ -81,7 +75,6 @@ static struct {
     f32             mouse_sensitivity;
 } state;
 
-/* -------------------- FUNCTION DECLARATIONS -------------------- */
 void save_map(void);
 void load_map(void);
 void toggle_mouse_control(void);
@@ -95,7 +88,6 @@ void render_game(void);
 void render_editor(void);
 i32 main(void);
 
-/* -------------------- MAP SAVING/LOADING -------------------- */
 void save_map(void) {
     FILE* f = fopen("map.txt", "w");
     fprintf(f, "[WALLS]\n");
@@ -134,7 +126,6 @@ void load_map(void) {
     fclose(f);
 }
 
-/* -------------------- INPUT HANDLING -------------------- */
 void toggle_mouse_control(void) {
     state.mouse_control = !state.mouse_control;
 
@@ -185,7 +176,6 @@ void handle_mouse_motion(const SDL_MouseMotionEvent* motion) {
     state.prev_mouse_y = motion->y;
 }
 
-/* -------------------- GAME LOGIC -------------------- */
 void update_player(void) {
     if (state.mode != 0) return;
 
@@ -277,7 +267,6 @@ b will_collide(v2 new_pos) {
     return false;
 }
 
-/* -------------------- RENDERING -------------------- */
 b ray_vs_segment(const v2 ro, const v2 rd, const v2 n, const v2 m, f32* out_dist, b* out_side) {
     const v2 ab = {m.x - n.x, m.y - n.y};
     const v2 ao = {ro.x - n.x, ro.y - n.y};
@@ -447,7 +436,6 @@ void render_editor(void) {
     SDL_RenderPresent(state.renderer);
 }
 
-/* -------------------- MAIN FUNCTION -------------------- */
 i32 main(void) {
     // Initialize SDL
     SDL_Init(SDL_INIT_VIDEO);
