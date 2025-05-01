@@ -114,13 +114,14 @@ void save_map(void) {
 
 void load_map(void) {
     state.wall_count = 0;
-    FILE* f = fopen("map.txt", "r");
-    if (!f) return;  // Gracefully handle a missing file
-
     char tag[64];
+
+    FILE* f = fopen("map.txt", "r");
+
     while (fscanf(f, "%63s", tag) == 1) {
         if (strncmp(tag, "[WALL", 5) == 0) {
             i32 x0, y0, x1, y1;
+
             if (fscanf(f, "%d %d %d %d", &x0, &y0, &x1, &y1) == 4) {
                 state.walls[state.wall_count++] = (wall_line){
                     .p0 = {x0, y0},
@@ -136,6 +137,7 @@ void load_map(void) {
 /* -------------------- INPUT HANDLING -------------------- */
 void toggle_mouse_control(void) {
     state.mouse_control = !state.mouse_control;
+
     SDL_SetRelativeMouseMode(state.mouse_control ? SDL_TRUE : SDL_FALSE);
 }
 
@@ -159,6 +161,7 @@ void handle_mouse_motion(const SDL_MouseMotionEvent* motion) {
 
     if (SDL_GetRelativeMouseMode()) {
         const i32 dx = motion->xrel;
+
         if (dx != 0) {
             const f32 rot_amount = -dx * state.mouse_sensitivity;
             const f32 cos_rot = cosf(rot_amount);
@@ -166,11 +169,13 @@ void handle_mouse_motion(const SDL_MouseMotionEvent* motion) {
 
             // Rotate direction vector
             const f32 old_dir_x = state.dir.x;
+
             state.dir.x = state.dir.x * cos_rot - state.dir.y * sin_rot;
             state.dir.y = old_dir_x * sin_rot + state.dir.y * cos_rot;
 
             // Rotate camera plane
             const f32 old_plane_x = state.plane.x;
+
             state.plane.x = state.plane.x * cos_rot - state.plane.y * sin_rot;
             state.plane.y = old_plane_x * sin_rot + state.plane.y * cos_rot;
         }
@@ -194,6 +199,7 @@ void update_player(void) {
             state.pos.x + dx * MOVE_SPEED,
             state.pos.y + dy * MOVE_SPEED
         };
+
         if (!will_collide(new_pos)) state.pos = new_pos;
     }
 
@@ -202,6 +208,7 @@ void update_player(void) {
             state.pos.x - dx * MOVE_SPEED,
             state.pos.y - dy * MOVE_SPEED
         };
+
         if (!will_collide(new_pos)) state.pos = new_pos;
     }
 
@@ -211,6 +218,7 @@ void update_player(void) {
             state.pos.x - dy * MOVE_SPEED,
             state.pos.y + dx * MOVE_SPEED
         };
+
         if (!will_collide(new_pos)) state.pos = new_pos;
     }
 
@@ -219,6 +227,7 @@ void update_player(void) {
             state.pos.x + dy * MOVE_SPEED,
             state.pos.y - dx * MOVE_SPEED
         };
+
         if (!will_collide(new_pos)) state.pos = new_pos;
     }
 }
@@ -244,12 +253,14 @@ b will_collide(v2 new_pos) {
         // Handle case where wall points are very close (effectively a point)
         if (ab_len_squared < 0.00001f) {
             const f32 dist_squared = SQR(ap.x) + SQR(ap.y);
+
             if (dist_squared < SQR(COLLISION_BUFFER)) return true;
             continue;
         }
 
         // Find the closest point on a line segment to the player position
         f32 t = (ap.x * ab.x + ap.y * ab.y) / ab_len_squared;
+
         t = CLAMP(t, 0.0f, 1.0f);
 
         const v2 closest = {
@@ -259,6 +270,7 @@ b will_collide(v2 new_pos) {
 
         // Check if the closest point is within the collision buffer
         const f32 dist_squared = SQR(new_pos.x - closest.x) + SQR(new_pos.y - closest.y);
+
         if (dist_squared < SQR(COLLISION_BUFFER)) return true;
     }
 
@@ -316,6 +328,7 @@ void render_game(void) {
 
         // Calculate ray direction
         const f32 cam = 2.f * ((f32)screen_x / (f32)SCREEN_WIDTH) - 1.f;
+
         v2 rd = {
             state.dir.x + state.plane.x * cam,
             state.dir.y + state.plane.y * cam
@@ -323,6 +336,7 @@ void render_game(void) {
 
         // Normalize ray direction
         const f32 rl = sqrtf(SQR(rd.x) + SQR(rd.y));
+
         rd.x /= rl;
         rd.y /= rl;
 
@@ -351,6 +365,7 @@ void render_game(void) {
                 }
             }
         }
+
         // Draw ceiling and floor
         verline(x, 0, SCREEN_HEIGHT / 2, COLOR_CEILING);
         verline(x, SCREEN_HEIGHT / 2, SCREEN_HEIGHT, COLOR_FLOOR);
@@ -381,6 +396,7 @@ void render_editor(void) {
                 y + GRID_DIST_TOP,
                 3, 3
             };
+
             SDL_RenderFillRect(state.renderer, &dot);
         }
     }
@@ -397,7 +413,9 @@ void render_editor(void) {
     }
     // Highlight hovered vertex
     i32 mx, my;
+
     SDL_GetMouseState(&mx, &my);
+
     v2i hover = {-1, -1};
     f32 best = 10.0f;
 
@@ -422,6 +440,7 @@ void render_editor(void) {
             hover.y + GRID_DIST_TOP - 5,
             10, 10
         };
+
         SDL_RenderDrawRect(state.renderer, &r);
     }
 
@@ -466,6 +485,7 @@ i32 main(void) {
 
     // Normalize direction vector
     const f32 dl = sqrtf(SQR(state.dir.x) + SQR(state.dir.y));
+
     state.dir.x /= dl;
     state.dir.y /= dl;
 
@@ -492,8 +512,7 @@ i32 main(void) {
         while (SDL_PollEvent(&ev)) {
             switch (ev.type) {
                 case SDL_QUIT:
-                    state.quit = true;
-                    break;
+                    state.quit = true; break;
 
                 case SDL_KEYDOWN:
                     if (ev.key.keysym.sym == SDLK_TAB) {
@@ -511,12 +530,10 @@ i32 main(void) {
                     } break;
 
                 case SDL_KEYUP:
-                    handle_key_event(&ev.key, false);
-                    break;
+                    handle_key_event(&ev.key, false); break;
 
                 case SDL_MOUSEMOTION:
-                    handle_mouse_motion(&ev.motion);
-                    break;
+                    handle_mouse_motion(&ev.motion); break;
 
                 case SDL_MOUSEBUTTONDOWN:
                     if (state.mode == 1 && ev.button.button == SDL_BUTTON_LEFT) {
@@ -574,8 +591,15 @@ i32 main(void) {
         if (state.mode == 0) {
             // Game mode
             render_game();
-            SDL_UpdateTexture(state.texture, NULL, state.pixels, SCREEN_WIDTH * 4);
+
+            SDL_UpdateTexture(
+                state.texture, 
+                NULL, state.pixels, 
+                SCREEN_WIDTH * 4
+            );
+
             SDL_RenderClear(state.renderer);
+
             SDL_RenderCopyEx(
                 state.renderer,
                 state.texture,
@@ -583,6 +607,7 @@ i32 main(void) {
                 0, NULL,
                 SDL_FLIP_VERTICAL
             );
+
             SDL_RenderPresent(state.renderer);
         } else {
             // Editor mode
@@ -594,6 +619,7 @@ i32 main(void) {
     SDL_DestroyTexture(state.texture);
     SDL_DestroyRenderer(state.renderer);
     SDL_DestroyWindow(state.window);
+
     SDL_Quit();
 
     return 0;
