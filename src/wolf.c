@@ -254,7 +254,7 @@ b will_collide(v2 new_pos) {
         if (ab_len_squared < 0.00001f) {
             const f32 dist_squared = SQR(ap.x) + SQR(ap.y);
 
-            if (dist_squared < SQR(COLLISION_BUFFER)) return true;
+            if (dist_squared < SQR(COLL_BUFFER)) return true;
             continue;
         }
 
@@ -271,7 +271,7 @@ b will_collide(v2 new_pos) {
         // Check if the closest point is within the collision buffer
         const f32 dist_squared = SQR(new_pos.x - closest.x) + SQR(new_pos.y - closest.y);
 
-        if (dist_squared < SQR(COLLISION_BUFFER)) return true;
+        if (dist_squared < SQR(COLL_BUFFER)) return true;
     }
 
     return false;
