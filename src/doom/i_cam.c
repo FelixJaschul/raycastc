@@ -1,13 +1,13 @@
 #pragma once
-#include "s_state.h"
+#include "s_state.c"
 
 // convert angle in [-(HFOV / 2)..+(HFOV / 2)] to X coordinate
-static inline int screen_angle_to_x(f32 angle) {
-    return ((int) (SCREEN_WIDTH / 2)) * (1.0f - tan(((angle + (HFOV / 2.0)) / HFOV) * PI_2 - PI_4));
+static int screen_angle_to_x(const f32 angle) {
+    return SCREEN_WIDTH / 2 * (1.0f - tan(((angle + (HFOV / 2.0)) / HFOV) * PI_2 - PI_4));
 }
 
 // world space -> camera space (translate and rotate)
-static inline v2 world_pos_to_camera(v2 p) {
+static v2 world_pos_to_camera(const v2 p) {
     const v2 u = { p.x - state.camera.pos.x, p.y - state.camera.pos.y };
 
     return (v2) {
@@ -17,9 +17,9 @@ static inline v2 world_pos_to_camera(v2 p) {
 }
 
 // rotate vector v by angle a
-static inline v2 rotate(v2 v, f32 a) {
+static v2 rotate(const v2 v, const f32 a) {
     return (v2) {
-        (v.x * cos(a)) - (v.y * sin(a)),
-        (v.x * sin(a)) + (v.y * cos(a)),
+        v.x * cos(a) - v.y * sin(a),
+        v.x * sin(a) + v.y * cos(a),
     };
 }

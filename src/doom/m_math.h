@@ -19,6 +19,3 @@
 // -1 right, 0 on, 1 left
 #define point_side(_p, _a, _b) ({ __typeof__(_p) __p = (_p), __a = (_a), __b = (_b); \
         -(((__p.x - __a.x) * (__b.y - __a.y)) - ((__p.y - __a.y) * (__b.x - __a.x))); })
-
-// rotate vector v by angle a
-#define rotate(v, a) ({ (v.x * cos(a)) - (v.y * sin(a)), (v.x * sin(a)) + (v.y * cos(a)); })

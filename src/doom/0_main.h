@@ -17,9 +17,8 @@
 #include "d_screen.h"
 #include "d_map.h"
 
-#include "i_ray.h"
-#include "i_cam.h"
+#include "i_ray.c"
+#include "i_cam.c"
 
 #include "s_map.h"
-#include "s_state.h"
-
+#include "s_state.c"

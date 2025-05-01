@@ -70,7 +70,7 @@ static int load_sectors(const char *path) {
     return retval;
 }
 
-static void verline(int x, int y0, int y1, u32 color) {
+static void verline(const int x, const int y0, const int y1, const u32 color) {
     for (int y = y0; y <= y1; y++) {
         state.pixels[y * SCREEN_WIDTH + x] = color;
     }
@@ -197,14 +197,14 @@ static void render() {
             const f32 sy0 = ifnan((VFOV * SCREEN_HEIGHT) / cp0.y, 1e10);
             const f32 sy1 = ifnan((VFOV * SCREEN_HEIGHT) / cp1.y, 1e10);
 
-            const int yf0  = (SCREEN_HEIGHT / 2) + (int) (( z_floor - EYE_Z) * sy0);
-            const int yc0  = (SCREEN_HEIGHT / 2) + (int) (( z_ceil  - EYE_Z) * sy0);
-            const int yf1  = (SCREEN_HEIGHT / 2) + (int) (( z_floor - EYE_Z) * sy1);
-            const int yc1  = (SCREEN_HEIGHT / 2) + (int) (( z_ceil  - EYE_Z) * sy1);
-            const int nyf0 = (SCREEN_HEIGHT / 2) + (int) ((nz_floor - EYE_Z) * sy0);
-            const int nyc0 = (SCREEN_HEIGHT / 2) + (int) ((nz_ceil  - EYE_Z) * sy0);
-            const int nyf1 = (SCREEN_HEIGHT / 2) + (int) ((nz_floor - EYE_Z) * sy1);
-            const int nyc1 = (SCREEN_HEIGHT / 2) + (int) ((nz_ceil  - EYE_Z) * sy1);
+            const int yf0  = SCREEN_HEIGHT / 2 + (int) (( z_floor - EYE_Z) * sy0);
+            const int yc0  = SCREEN_HEIGHT / 2 + (int) (( z_ceil  - EYE_Z) * sy0);
+            const int yf1  = SCREEN_HEIGHT / 2 + (int) (( z_floor - EYE_Z) * sy1);
+            const int yc1  = SCREEN_HEIGHT / 2 + (int) (( z_ceil  - EYE_Z) * sy1);
+            const int nyf0 = SCREEN_HEIGHT / 2 + (int) ((nz_floor - EYE_Z) * sy0);
+            const int nyc0 = SCREEN_HEIGHT / 2 + (int) ((nz_ceil  - EYE_Z) * sy0);
+            const int nyf1 = SCREEN_HEIGHT / 2 + (int) ((nz_floor - EYE_Z) * sy1);
+            const int nyc1 = SCREEN_HEIGHT / 2 + (int) ((nz_ceil  - EYE_Z) * sy1);
             const int txd  = tx1  - tx0;
             const int yfd  = yf1  - yf0;
             const int ycd  = yc1  - yc0;
@@ -314,6 +314,7 @@ int main() {
     state.camera.pos = (v2) { 3, 3 };
     state.camera.angle = 0.0;
     state.camera.sector = 1;
+    state.mode = false;
 
     int ret = 0;
     ASSERT(!((ret = load_sectors("res/level.txt"))), "error while loading sectors: %d", ret);
@@ -336,6 +337,10 @@ int main() {
 		const f32 move_speed = 3.0f * 0.016f;
 
         const u8 *keystate = SDL_GetKeyboardState(NULL);
+
+        if (keystate[SDLK_TAB & 0xFFFF]) {
+            state.mode = !state.mode;
+        }
 
         if (keystate[SDLK_RIGHT & 0xFFFF]) {
             state.camera.angle -= rot_speed;
@@ -371,10 +376,11 @@ int main() {
             // BFS neighbors in a circular queue, player is likely to be in one
             // of the neighboring sectors
             enum { QUEUE_MAX = 64 };
-            int queue[QUEUE_MAX] = { state.camera.sector };
-            int i = 0;
-            int n = 1;
-            int found = SECTOR_NONE;
+            int
+                queue[QUEUE_MAX] = { state.camera.sector },
+                i = 0,
+                n = 1,
+                found = SECTOR_NONE;
 
             while (n != 0) {
                 // get front of the queue and advance to the next
@@ -391,11 +397,13 @@ int main() {
 
                 // check neighbors
                 for (usize j = 0; j < sector->nwalls; j++) {
-                    const struct wall *wall = &state.walls.arr[sector->firstwall + j];
+                    const struct wall *wall =
+                        &state.walls.arr[sector->firstwall + j];
 
                     if (wall->portal) {
                         if (n == QUEUE_MAX) {
-                            fprintf(stderr, "out of queue space!"); goto done;
+                            fprintf(stderr, "out of queue space!");
+                            goto done;
                         }
 
                         queue[(i + n) % QUEUE_MAX] = wall->portal;
@@ -404,7 +412,7 @@ int main() {
                 }
             }
 
-			done:
+            done:
             if (!found) {
                 fprintf(stderr, "player is not in a sector!");
                 state.camera.sector = 1;
@@ -415,7 +423,6 @@ int main() {
 
         memset(state.pixels, 0, SCREEN_WIDTH * SCREEN_HEIGHT * 4);
         render();
-
         if (!state.sleepy) { present(); }
     }
 
