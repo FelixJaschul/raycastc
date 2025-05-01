@@ -1,7 +1,5 @@
 #pragma once
 
-#include "all.h"
-
 void toggle_mouse_control(void) {
     state.mouse_control = !state.mouse_control;
 

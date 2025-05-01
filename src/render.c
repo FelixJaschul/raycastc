@@ -1,7 +1,5 @@
 #pragma once
 
-#include "all.h"
-
 b ray_vs_segment(const v2 ro, const v2 rd, const v2 n, const v2 m, f32* out_dist, b* out_side) {
     const v2 ab = {m.x - n.x, m.y - n.y};
     const v2 ao = {ro.x - n.x, ro.y - n.y};

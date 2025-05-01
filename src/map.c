@@ -1,4 +1,4 @@
-#include "all.h"
+#pragma once
 
 void save_map(void) {
     FILE* f = fopen("map.txt", "w");
