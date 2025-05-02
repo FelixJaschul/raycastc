@@ -19,6 +19,7 @@
 
 #include "i_ray.c"
 #include "i_cam.c"
+#include "i_wall.c"
 
-#include "s_map.h"
+#include "s_map.c"
 #include "s_state.c"

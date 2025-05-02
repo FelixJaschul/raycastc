@@ -1,4 +1,5 @@
 #pragma once
+#include "s_map.c"
 
 static struct {
     SDL_Window *window;

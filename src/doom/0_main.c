@@ -17,14 +17,10 @@ static int load_sectors(const char *path) {
     char line[1024], buf[64];
     while (fgets(line, sizeof(line), f)) {
         const char *p = line;
-        while (isspace(*p)) {
-            p++;
-        }
+        while (isspace(*p)) { p++; }
 
         // skip line, empty or comment
-        if (!*p || *p == '#') {
-            continue;
-        }
+        if (!*p || *p == '#') { continue; }
 
         if (*p == '[') {
             strncpy(buf, p + 1, sizeof(buf));
@@ -70,6 +66,45 @@ static int load_sectors(const char *path) {
     return retval;
 }
 
+// save sectors to file -> path
+static int save_sectors(const char *path) {
+    FILE *f = fopen(path, "w");
+
+    int retval = 0;
+
+    // save sectors
+    fprintf(f, "[SECTOR]\n");
+    for (usize i = 1; i < state.sectors.n; i++) {
+        const struct sector *sector = &state.sectors.arr[i];
+        if (fprintf(f, "%d %zu %zu %f %f\n",
+                    sector->id,
+                    sector->firstwall,
+                    sector->nwalls,
+                    sector->zfloor,
+                    sector->zceil) < 0) {
+            retval = -2; goto done;
+        }
+    }
+
+    // save walls
+    fprintf(f, "[WALL]\n");
+    for (usize i = 0; i < state.walls.n; i++) {
+        const struct wall *wall = &state.walls.arr[i];
+        if (fprintf(f, "%d %d %d %d %d\n",
+                    wall->a.x,
+                    wall->a.y,
+                    wall->b.x,
+                    wall->b.y,
+                    wall->portal) < 0) {
+            retval = -3; goto done;
+        }
+    }
+
+    done:
+    fclose(f);
+    return retval;
+}
+
 static void verline(const int x, const int y0, const int y1, const u32 color) {
     for (int y = y0; y <= y1; y++) {
         state.pixels[y * SCREEN_WIDTH + x] = color;
@@ -89,7 +124,7 @@ static bool point_in_sector(const struct sector *sector, v2 p) {
     return true;
 }
 
-static void render() {
+static void render_g() {
     for (int i = 0; i < SCREEN_WIDTH; i++) {
         state.y_hi[i] = SCREEN_HEIGHT - 1;
         state.y_lo[i] = 0;
@@ -272,6 +307,27 @@ static void render() {
     state.sleepy = false;
 }
 
+static void render_e() {
+    // Clear screen
+    memset(state.pixels, 0, SCREEN_HEIGHT * SCREEN_HEIGHT * 4);
+
+    // Render walls as lines
+    for (usize i = 0; i < state.walls.n; i++) {
+        const struct wall *wall = &state.walls.arr[i];
+        // Scale for visualization
+        const int x0 = wall->a.x * 10;
+        const int y0 = wall->a.y * 10;
+        const int x1 = wall->b.x * 10;
+        const int y1 = wall->b.y * 10;
+
+        // Draw line (simple Bresenham's algorithm)
+        draw_line(x0, y0, x1, y1, 0xFFFFFFFF);
+    }
+
+    // present the editor view
+    present();
+}
+
 static void present() {
     void *px;
     int pitch;
@@ -325,13 +381,14 @@ int main() {
         while (SDL_PollEvent(&ev)) {
             switch (ev.type) {
                 case SDL_QUIT: state.quit = true; break;
+                case SDL_MOUSEBUTTONDOWN: if (state.mode) {
+                    // Mouse input for Editor
+                } break;
                 default: break;
             }
         }
 
-        if (state.quit) {
-            break;
-        }
+        if (state.quit) { break; }
 
         const f32 rot_speed  = 3.0f * 0.016f;
 		const f32 move_speed = 3.0f * 0.016f;
@@ -340,6 +397,8 @@ int main() {
 
         if (keystate[SDLK_TAB & 0xFFFF]) {
             state.mode = !state.mode;
+            if (state.mode) { save_sectors("res/level.txt"); render_e(); }
+            SDL_Delay(200);
         }
 
         if (keystate[SDLK_RIGHT & 0xFFFF]) {
@@ -422,7 +481,7 @@ int main() {
         }
 
         memset(state.pixels, 0, SCREEN_WIDTH * SCREEN_HEIGHT * 4);
-        render();
+        render_g();
         if (!state.sleepy) { present(); }
     }
 
