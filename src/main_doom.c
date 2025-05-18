@@ -42,26 +42,34 @@ typedef struct v2i_s { i32 x, y; } v2i;
 #define v2_to_v2i(_v) ({ __typeof__(_v) __v = (_v); (v2i) { __v.x, __v.y }; })
 #define v2i_to_v2(_v) ({ __typeof__(_v) __v = (_v); (v2) { __v.x, __v.y }; })
 
-#define dot(_v0, _v1) ({ __typeof__(_v0) __v0 = (_v0), __v1 = (_v1); (__v0.x * __v1.x) + (__v0.y * __v1.y); })
+#define dot(_v0, _v1) ({                                                        \
+        __typeof__(_v0) __v0 = (_v0), __v1 = (_v1);                             \
+        (__v0.x * __v1.x)                                                       \
+            + (__v0.y * __v1.y);                                                \
+    })
 #define length(_vl) ({ __typeof__(_vl) __vl = (_vl); sqrtf(dot(__vl, __vl)); })
-#define normalize(_vn) ({ __typeof__(_vn) __vn = (_vn); const f32 l = length(__vn); (__typeof__(_vn)) { __vn.x / l, __vn.y / l }; })
+#define normalize(_vn) ({                                                       \
+        __typeof__(_vn) __vn = (_vn);                                           \
+        const f32 l = length(__vn);                                             \
+        (__typeof__(_vn)) { __vn.x / l, __vn.y / l };                           \
+    })
 #define min(_a, _b) ({ __typeof__(_a) __a = (_a), __b = (_b); __a < __b ? __a : __b; })
 #define max(_a, _b) ({ __typeof__(_a) __a = (_a), __b = (_b); __a > __b ? __a : __b; })
 #define clamp(_x, _mi, _ma) (min(max(_x, _mi), _ma))
 #define ifnan(_x, _alt) ({ __typeof__(_x) __x = (_x); isnan(__x) ? (_alt) : __x; })
 
 // -1 right, 0 on, 1 left
-#define point_side(_p, _a, _b) ({                                              \
-        __typeof__(_p) __p = (_p), __a = (_a), __b = (_b);                         \
-        -(((__p.x - __a.x) * (__b.y - __a.y))                                  \
-            - ((__p.y - __a.y) * (__b.x - __a.x)));                            \
+#define point_side(_p, _a, _b) ({                                               \
+        __typeof__(_p) __p = (_p), __a = (_a), __b = (_b);                      \
+        -(((__p.x - __a.x) * (__b.y - __a.y))                                   \
+            - ((__p.y - __a.y) * (__b.x - __a.x)));                             \
     })
 
 // rotate vector v by angle a
 static v2 rotate(const v2 v, const f32 a) {
     return (v2) {
-        (v.x * cos(a)) - (v.y * sin(a)),
-        (v.x * sin(a)) + (v.y * cos(a)),
+        v.x * cos(a) - v.y * sin(a),
+        v.x * sin(a) + v.y * cos(a),
     };
 }
 
@@ -117,8 +125,15 @@ static struct {
     u32 *pixels;
     bool quit;
 
-    struct { struct sector arr[32]; usize n; } sectors;
-    struct { struct wall arr[128]; usize n; } walls;
+    struct {
+        struct sector arr[32];
+        usize n;
+    } sectors;
+
+    struct {
+        struct wall arr[128];
+        usize n;
+    } walls;
 
     u16 y_lo[SCREEN_WIDTH], y_hi[SCREEN_WIDTH];
 
@@ -160,10 +175,13 @@ static int load_sectors(const char *path) {
     state.sectors.n = 1;
 
     FILE *f = fopen(path, "r");
-    if (!f) { return -1; }
+    if (!f) return -1; // file cant be opened
 
     int retval = 0;
-    enum { SCAN_SECTOR, SCAN_WALL, SCAN_NONE } ss = SCAN_NONE;
+
+    enum {
+        SCAN_SECTOR, SCAN_WALL, SCAN_NONE
+    } ss = SCAN_NONE;
 
     char line[1024], buf[64];
     while (fgets(line, sizeof(line), f)) {
@@ -180,17 +198,18 @@ static int load_sectors(const char *path) {
                 if (!section) {
                     retval = -2;
                     goto done;
-                }
+                } // invalid section
 
-                if (!strcmp(section, "SECTOR")) { ss = SCAN_SECTOR; } else if (!strcmp(section, "WALL")) {
+                if (!strcmp(section, "SECTOR")) ss = SCAN_SECTOR;
+                else if (!strcmp(section, "WALL")) {
                     ss = SCAN_WALL;
                 } else {
                     retval = -3;
                     goto done;
-                }
+                } // unknown sector or wall
             } else {
                 switch (ss) {
-                    case SCAN_WALL: {
+                    case SCAN_WALL:
                         struct wall *wall = &state.walls.arr[state.walls.n++];
                         if (sscanf(
                                 p,
@@ -203,10 +222,9 @@ static int load_sectors(const char *path) {
                             != 5) {
                             retval = -4;
                             goto done;
-                        }
-                    };
+                        } // invalid wall data format
                         break;
-                    case SCAN_SECTOR: {
+                    case SCAN_SECTOR:
                         struct sector *sector = &state.sectors.arr[state.sectors.n++];
                         if (sscanf(
                                 p,
@@ -219,17 +237,16 @@ static int load_sectors(const char *path) {
                             != 5) {
                             retval = -5;
                             goto done;
-                        }
-                    };
+                        } // invalid sector data format
                         break;
-                    default: retval = -6;
+                    default: retval = -6; // parsing data out of recognized section
                         goto done;
                 }
             }
         }
     }
 
-    if (ferror(f)) retval = -128;
+    if (ferror(f)) retval = -128; // file read error
     done:
     fclose(f);
     return retval;
@@ -264,8 +281,8 @@ static void render() {
 
     // calculate edges of near/far planes (looking down +Y axis)
     const v2
-        zdl = rotate(((v2) { 0.0f, 1.0f }), +(HFOV / 2.0f)),
-        zdr = rotate(((v2) { 0.0f, 1.0f }), -(HFOV / 2.0f)),
+        zdl = rotate((v2) { 0.0f, 1.0f }, +(HFOV / 2.0f)),
+        zdr = rotate((v2) { 0.0f, 1.0f }, -(HFOV / 2.0f)),
         znl = (v2) { zdl.x * ZNEAR, zdl.y * ZNEAR },
         znr = (v2) { zdr.x * ZNEAR, zdr.y * ZNEAR },
         zfl = (v2) { zdl.x * ZFAR, zdl.y * ZFAR },
