@@ -143,6 +143,15 @@ static struct {
         int sector;
     } camera;
 
+    struct {
+        bool mode;
+        char buffer[4096];
+    } dev;
+
+    struct {
+        int pos;
+    } cursor;
+
     bool sleepy;
 } state;
 
@@ -168,6 +177,62 @@ static v2 world_pos_to_camera(const v2 p) {
 }
 
 static void present();
+
+// save sectors from state -> file
+static int save_sectors(const char *path) {
+    FILE *f = fopen(path, "w");
+    if (!f) return -1; // file cant be opened
+
+    int retval = 0;
+
+    // Write sectors
+    if (fprintf(f, "[SECTOR]\n") < 0) {
+        retval = -2;
+        goto done;
+    } // error writing section header
+
+    for (usize i = 1; i < state.sectors.n; i++) {
+        const struct sector *s = &state.sectors.arr[i];
+        if (fprintf(f,
+                "%d %zu %zu %.2f %.2f\n",
+                s->id,
+                s->firstwall,
+                s->nwalls,
+                s->zfloor,
+                s->zceil)
+            < 0) {
+            retval = -3;
+            goto done;
+        } // error writing sector data
+    }
+
+    // Write walls
+    if (fprintf(f, "[WALL]\n") < 0) {
+        retval = -4;
+        goto done;
+    } // error writing section header
+
+    for (usize i = 0; i < state.walls.n; i++) {
+        const struct wall *w = &state.walls.arr[i];
+        if (fprintf(f,
+                "%d %d %d %d %d\n",
+                w->a.x,
+                w->a.y,
+                w->b.x,
+                w->b.y,
+                w->portal)
+            < 0) {
+            retval = -5;
+            goto done;
+        } // error writing wall data
+    }
+
+    if (ferror(f)) retval = -128; // file write error
+
+    done:
+    fclose(f);
+    return retval;
+}
 
 // load sectors from file -> state
 static int load_sectors(const char *path) {
@@ -209,7 +274,7 @@ static int load_sectors(const char *path) {
                 } // unknown sector or wall
             } else {
                 switch (ss) {
-                    case SCAN_WALL:
+                    case SCAN_WALL: {
                         struct wall *wall = &state.walls.arr[state.walls.n++];
                         if (sscanf(
                                 p,
@@ -223,8 +288,8 @@ static int load_sectors(const char *path) {
                             retval = -4;
                             goto done;
                         } // invalid wall data format
-                        break;
-                    case SCAN_SECTOR:
+                    } break;
+                    case SCAN_SECTOR: {
                         struct sector *sector = &state.sectors.arr[state.sectors.n++];
                         if (sscanf(
                                 p,
@@ -238,7 +303,7 @@ static int load_sectors(const char *path) {
                             retval = -5;
                             goto done;
                         } // invalid sector data format
-                        break;
+                    } break;
                     default: retval = -6; // parsing data out of recognized section
                         goto done;
                 }
@@ -386,14 +451,14 @@ static void render() {
                 sy1 = ifnan((VFOV * SCREEN_HEIGHT) / cp1.y, 1e10);
 
             const int
-                yf0  = (SCREEN_HEIGHT / 2) + (int) (( z_floor - EYE_Z) * sy0),
-                yc0  = (SCREEN_HEIGHT / 2) + (int) (( z_ceil  - EYE_Z) * sy0),
-                yf1  = (SCREEN_HEIGHT / 2) + (int) (( z_floor - EYE_Z) * sy1),
-                yc1  = (SCREEN_HEIGHT / 2) + (int) (( z_ceil  - EYE_Z) * sy1),
-                nyf0 = (SCREEN_HEIGHT / 2) + (int) ((nz_floor - EYE_Z) * sy0),
-                nyc0 = (SCREEN_HEIGHT / 2) + (int) ((nz_ceil  - EYE_Z) * sy0),
-                nyf1 = (SCREEN_HEIGHT / 2) + (int) ((nz_floor - EYE_Z) * sy1),
-                nyc1 = (SCREEN_HEIGHT / 2) + (int) ((nz_ceil  - EYE_Z) * sy1),
+                yf0  = SCREEN_HEIGHT / 2 + (int) (( z_floor - EYE_Z) * sy0),
+                yc0  = SCREEN_HEIGHT / 2 + (int) (( z_ceil  - EYE_Z) * sy0),
+                yf1  = SCREEN_HEIGHT / 2 + (int) (( z_floor - EYE_Z) * sy1),
+                yc1  = SCREEN_HEIGHT / 2 + (int) (( z_ceil  - EYE_Z) * sy1),
+                nyf0 = SCREEN_HEIGHT / 2 + (int) ((nz_floor - EYE_Z) * sy0),
+                nyc0 = SCREEN_HEIGHT / 2 + (int) ((nz_ceil  - EYE_Z) * sy0),
+                nyf1 = SCREEN_HEIGHT / 2 + (int) ((nz_floor - EYE_Z) * sy1),
+                nyc1 = SCREEN_HEIGHT / 2 + (int) ((nz_ceil  - EYE_Z) * sy1),
                 txd = tx1 - tx0,
                 yfd = yf1 - yf0,
                 ycd = yc1 - yc0,
@@ -489,6 +554,56 @@ static void render() {
     state.sleepy = false;
 }
 
+static void dev_mode() {
+    // clear screen
+    memset(state.pixels, 0, SCREEN_WIDTH * SCREEN_HEIGHT * sizeof(u32));
+
+    const int char_width = 8;
+    const int char_height = 12;
+    const int chars_per_line = SCREEN_WIDTH / char_width;
+    u32 color;
+
+    // draw text content
+    int x = 0, y = 0;
+    for (int i = 0; state.dev.buffer[i]; i++) {
+        if (state.dev.buffer[i] == '\n') {
+            y++;
+            x = 0;
+        } else {
+            // draw characters of file
+            color = 0xFFFFFFFF;
+
+            // draw cursor if this is the current position
+            color = 0xFFFF0000;
+            if (i == state.cursor.pos) {
+                for (int cy = 0; cy < char_height; cy++) {
+                    const int px = x * char_width;
+                    const int py = y * char_height + cy;
+                    if (px < SCREEN_WIDTH && py < SCREEN_HEIGHT)
+                        state.pixels[py * SCREEN_WIDTH + px] = color;
+                }
+            }
+
+            x++;
+            if (x >= chars_per_line) {
+                y++;
+                x = 0;
+            }
+        }
+    }
+
+    // draw cursor at the end if needed
+    color = 0xFFFF0000;
+    if (state.cursor.pos == strlen(state.dev.buffer)) {
+        for (int cy = 0; cy < char_height; cy++) {
+            const int px = x * char_width;
+            const int py = y * char_height + cy;
+            if (px < SCREEN_WIDTH && py < SCREEN_HEIGHT)
+                state.pixels[py * SCREEN_WIDTH + px] = color;  // Red cursor
+        }
+    }
+}
+
 static void present() {
     void *px;
     int pitch;
@@ -564,6 +679,9 @@ int main() {
     state.camera.angle = 0.0;
     state.camera.sector = 1;
 
+    state.dev.mode = false;
+    state.cursor.pos = 0;
+
     int ret = 0;
     ASSERT(!((ret = load_sectors("res/level.txt"))), "error while loading sectors: %d", ret);
     printf(
@@ -576,10 +694,46 @@ int main() {
         while (SDL_PollEvent(&ev)) {
             switch (ev.type) {
                 case SDL_QUIT:
-                    state.quit = true;
-                    break;
-                default:
-                    break;
+                    state.quit = true; break;
+                case SDL_KEYDOWN:
+                    if (ev.key.keysym.sym == SDLK_TAB) {
+                        if (!state.dev.mode) {
+                            state.dev.mode = true;
+                            SDL_StartTextInput();
+                            load_sectors("res/level.txt");
+                        } else {
+                            state.dev.mode = false;
+                            SDL_StopTextInput();
+                            save_sectors("res/level.txt");
+                        }
+                    } else if (state.dev.mode) {
+                        switch (ev.key.keysym.sym) {
+                            case SDLK_BACKSPACE:
+                                if (state.cursor.pos > 0) {
+                                    memmove(&state.dev.buffer[state.cursor.pos - 1], &state.dev.buffer[state.cursor.pos], strlen(&state.dev.buffer[state.cursor.pos]) + 1);
+                                    state.cursor.pos--;
+                                } break;
+                            case SDLK_RETURN:
+                                if (strlen(state.dev.buffer) < sizeof(state.dev.buffer) - 1) {
+                                    memmove(&state.dev.buffer[state.cursor.pos + 1], &state.dev.buffer[state.cursor.pos], strlen(&state.dev.buffer[state.cursor.pos]) + 1);
+                                    state.dev.buffer[state.cursor.pos] = '\n';
+                                    state.cursor.pos++;
+                                } break;
+                            case SDLK_LEFT:
+                            case SDLK_RIGHT:
+                            default: break;
+                        }
+                    }
+                case SDL_TEXTINPUT:
+                    if (state.dev.mode) {
+                        int text_len = strlen(ev.text.text);
+                        if (strlen(state.dev.buffer) + text_len < sizeof(state.dev.buffer) - 1) {
+                            memmove(&state.dev.buffer[state.cursor.pos + text_len], &state.dev.buffer[state.cursor.pos], strlen(&state.dev.buffer[state.cursor.pos]) + 1);
+                            memcpy(&state.dev.buffer[state.cursor.pos], ev.text.text, text_len);
+                            state.cursor.pos += text_len;
+                        }
+                    } break;
+                default: break;
             }
         }
 
@@ -656,8 +810,7 @@ int main() {
                 }
             }
 
-
-done:
+            done:
             if (!found) {
                 fprintf(stderr, "player is not in a sector!");
                 state.camera.sector = 1;
@@ -667,8 +820,10 @@ done:
         }
 
         memset(state.pixels, 0, SCREEN_WIDTH * SCREEN_HEIGHT * 4);
-        render();
-        if (!state.sleepy) { present(); }
+
+        if (state.dev.mode) dev_mode();
+        else render();
+        if (!state.sleepy) present();
     }
 
     SDL_DestroyTexture(state.debug);
