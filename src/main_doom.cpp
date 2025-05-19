@@ -545,10 +545,6 @@ static void render_dev_version() {
     const int offsetX = SCREEN_WIDTH / 2 + 140;
     const int offsetY = SCREEN_HEIGHT / 2 + 120;
 
-    // clear the portion of the screen for the dev map (or use separate texture)
-    // for simplicity, draw over. A better way is a separate buffer or SDL_RenderSetViewport.
-    // for this example, assuming state.pixels is cleared before this call.
-
     // draw all walls
     for (usize i = 0; i < state.walls.n; i++) {
         const Wall *wall = &state.walls.arr[i];
