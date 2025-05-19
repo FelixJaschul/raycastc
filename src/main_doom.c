@@ -145,6 +145,10 @@ static struct {
         int sector;
     } camera;
 
+    struct {
+        bool mode;
+    } dev;
+
     bool sleepy;
 } state;
 
@@ -170,62 +174,6 @@ static v2 world_pos_to_camera(const v2 p) {
 }
 
 static void present();
-
-// save sectors from state -> file
-/* static int save_sectors(const char *path) {
-    FILE *f = fopen(path, "w");
-    if (!f) return -1; // file cant be opened
-
-    int retval = 0;
-
-    // Write sectors
-    if (fprintf(f, "[SECTOR]\n") < 0) {
-        retval = -2;
-        goto done;
-    } // error writing section header
-
-    for (usize i = 1; i < state.sectors.n; i++) {
-        const struct sector *s = &state.sectors.arr[i];
-        if (fprintf(f,
-                "%d %zu %zu %.2f %.2f\n",
-                s->id,
-                s->firstwall,
-                s->nwalls,
-                s->zfloor,
-                s->zceil)
-            < 0) {
-            retval = -3;
-            goto done;
-        } // error writing sector data
-    }
-
-    // Write walls
-    if (fprintf(f, "[WALL]\n") < 0) {
-        retval = -4;
-        goto done;
-    } // error writing section header
-
-    for (usize i = 0; i < state.walls.n; i++) {
-        const struct wall *w = &state.walls.arr[i];
-        if (fprintf(f,
-                "%d %d %d %d %d\n",
-                w->a.x,
-                w->a.y,
-                w->b.x,
-                w->b.y,
-                w->portal)
-            < 0) {
-            retval = -5;
-            goto done;
-        } // error writing wall data
-    }
-
-    if (ferror(f)) retval = -128; // file write error
-
-    done:
-    fclose(f);
-    return retval;
-} */
 
 // load sectors from file -> state
 static int load_sectors(const char *path) {
@@ -547,9 +495,95 @@ static void render() {
     state.sleepy = false;
 }
 
-/* static void dev_mode() {
-    // map editor
-} */
+static void draw_pixel(int x, int y, u32 color) {
+    if (x >= 0 && x < SCREEN_WIDTH && y >= 0 && y < SCREEN_HEIGHT) {
+        state.pixels[y * SCREEN_WIDTH + x] = color;
+    }
+}
+
+static void draw_line(int x0, int y0, int x1, int y1, u32 color) {
+    // Bresenham's line algorithm
+    int dx = abs(x1 - x0);
+    int dy = -abs(y1 - y0);
+    int sx = x0 < x1 ? 1 : -1;
+    int sy = y0 < y1 ? 1 : -1;
+    int err = dx + dy;
+    
+    while (true) {
+        draw_pixel(x0, y0, color);
+        if (x0 == x1 && y0 == y1) break;
+        int e2 = 2 * err;
+        if (e2 >= dy) {
+            if (x0 == x1) break;
+            err += dy;
+            x0 += sx;
+        }
+        if (e2 <= dx) {
+            if (y0 == y1) break;
+            err += dx;
+            y0 += sy;
+        }
+    }
+}
+
+static void draw_circle(int x0, int y0, int radius, u32 color) {
+    // Midpoint circle algorithm
+    int x = radius;
+    int y = 0;
+    int err = 0;
+    
+    while (x >= y) {
+        draw_pixel(x0 + x, y0 + y, color);
+        draw_pixel(x0 + y, y0 + x, color);
+        draw_pixel(x0 - y, y0 + x, color);
+        draw_pixel(x0 - x, y0 + y, color);
+        draw_pixel(x0 - x, y0 - y, color);
+        draw_pixel(x0 - y, y0 - x, color);
+        draw_pixel(x0 + y, y0 - x, color);
+        draw_pixel(x0 + x, y0 - y, color);
+        
+        y += 1;
+        if (err <= 0) {
+            err += 2 * y + 1;
+        }
+        if (err > 0) {
+            x -= 1;
+            err -= 2 * x + 1;
+        }
+    }
+}
+
+static void render_dev_version() {
+    // Define scale and offset for the map view
+    const float scale = 30.0f;  // Pixels per world unit
+    const int offsetX = SCREEN_WIDTH / 2 + 150;
+    const int offsetY = SCREEN_HEIGHT / 2 + 120;
+
+    // Draw all walls
+    for (usize i = 0; i < state.walls.n; i++) {
+        const struct wall *wall = &state.walls.arr[i];
+
+        // Calculate screen coordinates
+        int x0 = offsetX - (int)(wall->a.x * scale);
+        int y0 = offsetY - (int)(wall->a.y * scale);
+        int x1 = offsetX - (int)(wall->b.x * scale);
+        int y1 = offsetY - (int)(wall->b.y * scale);
+
+        // Draw the wall line
+        u32 color = wall->portal ? 0xFF0000FF : 0xFFFFFFFF;  // Green for portals, white for walls
+        draw_line(x0, y0, x1, y1, color);
+    }
+
+    //dDraw player position and direction
+    int playerX = offsetX - (int)(state.camera.pos.x * scale);
+    int playerY = offsetY - (int)(state.camera.pos.y * scale);
+
+    draw_circle(playerX, playerY, 3, 0xFF0000FF);
+
+    int dirX = playerX - (int)(cos(state.camera.angle) * 10);
+    int dirY = playerY - (int)(sin(state.camera.angle) * 10);
+    draw_line(playerX, playerY, dirX, dirY, 0xFF0000FF);
+}
 
 static void present() {
     void *px;
@@ -589,7 +623,7 @@ int main() {
 
     state.window =
         SDL_CreateWindow(
-            "raycast",
+            "raycast_c",
             SDL_WINDOWPOS_CENTERED_DISPLAY(0),
             SDL_WINDOWPOS_CENTERED_DISPLAY(0),
             1280,
@@ -626,6 +660,8 @@ int main() {
     state.camera.angle = 0.0;
     state.camera.sector = 1;
 
+    state.dev.mode = false;
+
     int retval = 0;
     ASSERT(!((retval = load_sectors(LEVEL_FILE))), "error while loading sectors: %d", retval);
     printf(
@@ -637,7 +673,9 @@ int main() {
         SDL_Event ev;
         while (SDL_PollEvent(&ev)) {
             switch (ev.type) {
-                case SDL_QUIT: state.quit = true; break;
+                case SDL_QUIT:
+                    state.quit = true;
+                    break;
                 default: break;
             }
         }
@@ -673,6 +711,9 @@ int main() {
             };
 
         if (keystate[SDLK_F1 & 0xFFFF]) state.sleepy = true;
+
+        if (keystate[SDLK_F2 & 0xFFFF]) state.dev.mode = true;
+        if (keystate[SDLK_F3 & 0xFFFF]) state.dev.mode = false;
 
         // update player sector
         {
@@ -716,17 +757,15 @@ int main() {
             }
 
             done:
-            if (!found) {
-                fprintf(stderr, "player is not in a sector!");
-                state.camera.sector = 1;
-            } else {
-                state.camera.sector = found;
-            }
+            if (!found) state.camera.sector = 1;
+            else state.camera.sector = found;
         }
 
-        memset(state.pixels, 0, SCREEN_WIDTH * SCREEN_HEIGHT * 4);
+	// clear screen
+    // memset(state.pixels, 0, SCREEN_WIDTH * SCREEN_HEIGHT * 4);
 
-        render();
+	if (state.dev.mode) render_dev_version();
+	else render();
         if (!state.sleepy) present();
     }
 
